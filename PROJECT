@@ -1,0 +1,3 @@
+version: "1"
+domain: repl.info
+repo: github.com/takaishi/openstack-sg-controller
