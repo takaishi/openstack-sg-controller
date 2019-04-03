@@ -27,6 +27,16 @@ import (
 type SecurityGroupSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
+	NodeSelector map[string]string   `json:"nodeSelector"`
+	Name         string              `json:"name"`
+	Tenant       string              `json:"tenant"`
+	Rules        []SecurityGroupRule `json:"rules"`
+}
+
+type SecurityGroupRule struct {
+	PortRangeMax   string `json:"portRangeMax"`
+	PortRangeMin   string `json:"portRangeMin"`
+	RemoteIpPrefix string `json:"remoteIpPrefix"`
 }
 
 // SecurityGroupStatus defines the observed state of SecurityGroup

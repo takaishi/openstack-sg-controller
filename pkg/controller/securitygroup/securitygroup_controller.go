@@ -18,18 +18,18 @@ package securitygroup
 
 import (
 	"context"
-	"reflect"
+	"os"
+	"strconv"
+
+	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/rules"
+	"github.com/takaishi/openstack-sg-controller/pkg/openstack"
 
 	openstackv1beta1 "github.com/takaishi/openstack-sg-controller/pkg/apis/openstack/v1beta1"
 	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -113,55 +113,110 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 		return reconcile.Result{}, err
 	}
 
-	// TODO(user): Change this to be the object type created by your controller
-	// Define the desired Deployment object
-	deploy := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      instance.Name + "-deployment",
-			Namespace: instance.Namespace,
-		},
-		Spec: appsv1.DeploymentSpec{
-			Selector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{"deployment": instance.Name + "-deployment"},
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"deployment": instance.Name + "-deployment"}},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name:  "nginx",
-							Image: "nginx",
-						},
-					},
-				},
-			},
-		},
-	}
-	if err := controllerutil.SetControllerReference(instance, deploy, r.scheme); err != nil {
+	log.Info("Debug", "spec", instance.Spec)
+
+	osClient, err := openstack.NewClient()
+	if err != nil {
 		return reconcile.Result{}, err
 	}
 
-	// TODO(user): Change this for the object type created by your controller
-	// Check if the Deployment already exists
-	found := &appsv1.Deployment{}
-	err = r.Get(context.TODO(), types.NamespacedName{Name: deploy.Name, Namespace: deploy.Namespace}, found)
-	if err != nil && errors.IsNotFound(err) {
-		log.Info("Creating Deployment", "namespace", deploy.Namespace, "name", deploy.Name)
-		err = r.Create(context.TODO(), deploy)
-		return reconcile.Result{}, err
-	} else if err != nil {
+	tenant, err := osClient.GetTenantByName(os.Getenv("OS_TENANT_NAME"))
+	if err != nil {
 		return reconcile.Result{}, err
 	}
+	log.Info("Debug", "tenant.ID", tenant.ID)
 
-	// TODO(user): Change this for the object type created by your controller
-	// Update the found object and write the result back if there are any changes
-	if !reflect.DeepEqual(deploy.Spec, found.Spec) {
-		found.Spec = deploy.Spec
-		log.Info("Updating Deployment", "namespace", deploy.Namespace, "name", deploy.Name)
-		err = r.Update(context.TODO(), found)
+	// Check if the SecurityGroup already exists
+	_, err = osClient.GetSecurityGroupByName(instance.Spec.Name)
+	if err != nil {
+		log.Info("Creating SG", "name", instance.Spec.Name)
+		sg, err := osClient.CreateSecurityGroup(instance.Spec.Name, "", tenant.ID)
 		if err != nil {
 			return reconcile.Result{}, err
 		}
+		log.Info("Success creating SG", "name", instance.Spec.Name, "id", sg.ID)
+
+		for _, rule := range instance.Spec.Rules {
+			max, err := strconv.Atoi(rule.PortRangeMax)
+			if err != nil {
+				return reconcile.Result{}, err
+			}
+			min, err := strconv.Atoi(rule.PortRangeMin)
+			if err != nil {
+				return reconcile.Result{}, err
+			}
+			createOpts := rules.CreateOpts{
+				Direction:      "ingress",
+				SecGroupID:     sg.ID,
+				PortRangeMax:   max,
+				PortRangeMin:   min,
+				RemoteIPPrefix: rule.RemoteIpPrefix,
+				EtherType:      "IPv4",
+				Protocol:       "TCP",
+			}
+			err = osClient.AddSecurityGroupRule(createOpts)
+			if err != nil {
+				return reconcile.Result{}, err
+			}
+		}
 	}
+
+	sg, err := osClient.GetSecurityGroupByName(instance.Spec.Name)
+	if err != nil {
+		return reconcile.Result{}, nil
+	}
+
+	// Resource側のルールがない場合、SGにルールを追加
+	for _, rule := range instance.Spec.Rules {
+		exists := false
+		for _, existsRule := range sg.Rules {
+			if rule.RemoteIpPrefix == existsRule.RemoteIPPrefix && rule.PortRangeMax == strconv.Itoa(existsRule.PortRangeMax) && rule.PortRangeMin == strconv.Itoa(existsRule.PortRangeMin) {
+				exists = true
+			}
+		}
+
+		if !exists {
+			max, err := strconv.Atoi(rule.PortRangeMax)
+			if err != nil {
+				return reconcile.Result{}, err
+			}
+			min, err := strconv.Atoi(rule.PortRangeMin)
+			if err != nil {
+				return reconcile.Result{}, err
+			}
+
+			createOpts := rules.CreateOpts{
+				Direction:      "ingress",
+				SecGroupID:     sg.ID,
+				PortRangeMax:   max,
+				PortRangeMin:   min,
+				RemoteIPPrefix: rule.RemoteIpPrefix,
+				EtherType:      "IPv4",
+				Protocol:       "TCP",
+			}
+
+			err = osClient.AddSecurityGroupRule(createOpts)
+			if err != nil {
+				return reconcile.Result{}, err
+			}
+		}
+	}
+
+	// SGのルールがResource側にない場合、ルールを削除
+	for _, existRule := range sg.Rules {
+		delete := true
+		for _, rule := range instance.Spec.Rules {
+			if existRule.RemoteIPPrefix == rule.RemoteIpPrefix && strconv.Itoa(existRule.PortRangeMax) == rule.PortRangeMax && strconv.Itoa(existRule.PortRangeMin) == rule.PortRangeMin {
+				delete = false
+			}
+		}
+		if delete {
+			err = osClient.DeleteSecurityGroupRule(existRule.ID)
+			if err != nil {
+				return reconcile.Result{}, err
+			}
+		}
+	}
+
 	return reconcile.Result{}, nil
 }
