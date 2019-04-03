@@ -182,29 +182,10 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 		log.Info("Success creating SG", "name", instance.Spec.Name, "id", sg.ID)
 
 		for _, rule := range instance.Spec.Rules {
-			max, err := strconv.Atoi(rule.PortRangeMax)
+			err = r.addRule(osClient, sg.ID, rule)
 			if err != nil {
 				return reconcile.Result{}, err
 			}
-			min, err := strconv.Atoi(rule.PortRangeMin)
-			if err != nil {
-				return reconcile.Result{}, err
-			}
-			createOpts := rules.CreateOpts{
-				Direction:      "ingress",
-				SecGroupID:     sg.ID,
-				PortRangeMax:   max,
-				PortRangeMin:   min,
-				RemoteIPPrefix: rule.RemoteIpPrefix,
-				EtherType:      "IPv4",
-				Protocol:       "TCP",
-			}
-			log.Info("Creating SG Rule", "cidr", rule.RemoteIpPrefix, "port", fmt.Sprintf("%d-%d", max, min))
-			err = osClient.AddSecurityGroupRule(createOpts)
-			if err != nil {
-				return reconcile.Result{}, err
-			}
-			log.Info("Success to create SG Rule", "cidr", rule.RemoteIpPrefix, "port", fmt.Sprintf("%d-%d", max, min))
 		}
 	}
 
@@ -218,31 +199,10 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 		}
 
 		if !exists {
-			max, err := strconv.Atoi(rule.PortRangeMax)
+			r.addRule(osClient, sg.ID, rule)
 			if err != nil {
 				return reconcile.Result{}, err
 			}
-			min, err := strconv.Atoi(rule.PortRangeMin)
-			if err != nil {
-				return reconcile.Result{}, err
-			}
-
-			createOpts := rules.CreateOpts{
-				Direction:      "ingress",
-				SecGroupID:     sg.ID,
-				PortRangeMax:   max,
-				PortRangeMin:   min,
-				RemoteIPPrefix: rule.RemoteIpPrefix,
-				EtherType:      "IPv4",
-				Protocol:       "TCP",
-			}
-			log.Info("Creating SG Rule", "cidr", rule.RemoteIpPrefix, "port", fmt.Sprintf("%d-%d", min, max))
-
-			err = osClient.AddSecurityGroupRule(createOpts)
-			if err != nil {
-				return reconcile.Result{}, err
-			}
-			log.Info("Success to create SG Rule", "cidr", rule.RemoteIpPrefix, "port", fmt.Sprintf("%d-%d", min, max))
 		}
 	}
 
@@ -265,6 +225,34 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 	}
 
 	return reconcile.Result{}, nil
+}
+
+func (r *ReconcileSecurityGroup) addRule(osClient *openstack.OpenStackClient, id string, rule openstackv1beta1.SecurityGroupRule) error {
+	max, err := strconv.Atoi(rule.PortRangeMax)
+	if err != nil {
+		return err
+	}
+	min, err := strconv.Atoi(rule.PortRangeMin)
+	if err != nil {
+		return err
+	}
+	createOpts := rules.CreateOpts{
+		Direction:      "ingress",
+		SecGroupID:     id,
+		PortRangeMax:   max,
+		PortRangeMin:   min,
+		RemoteIPPrefix: rule.RemoteIpPrefix,
+		EtherType:      "IPv4",
+		Protocol:       "TCP",
+	}
+	log.Info("Creating SG Rule", "cidr", rule.RemoteIpPrefix, "port", fmt.Sprintf("%d-%d", max, min))
+	err = osClient.AddSecurityGroupRule(createOpts)
+	if err != nil {
+		return err
+	}
+	log.Info("Success to create SG Rule", "cidr", rule.RemoteIpPrefix, "port", fmt.Sprintf("%d-%d", max, min))
+
+	return nil
 }
 
 func containsString(slice []string, s string) bool {
