@@ -90,6 +90,23 @@ type ReconcileSecurityGroup struct {
 	scheme *runtime.Scheme
 }
 
+func (r *ReconcileSecurityGroup) deleteExternalDependency(instance *openstackv1beta1.SecurityGroup) error {
+	log.Info("Debug: deleting the external dependencies")
+
+	osClient, err := openstack.NewClient()
+	if err != nil {
+		return err
+	}
+	sg, err := osClient.GetSecurityGroupByName(instance.Spec.Name)
+	if err != nil {
+		return err
+	}
+
+	err = osClient.DeleteSecurityGroup(sg.ID)
+
+	return nil
+}
+
 // Reconcile reads that state of the cluster for a SecurityGroup object and makes changes based on the state read
 // and what is in the SecurityGroup.Spec
 // TODO(user): Modify this Reconcile function to implement your Controller logic.  The scaffolding writes
@@ -105,12 +122,36 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 	err := r.Get(context.TODO(), request.NamespacedName, instance)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			// Object not found, return.  Created objects are automatically garbage collected.
-			// For additional cleanup logic use finalizers.
+			log.Info("Debug: instance not found")
+
 			return reconcile.Result{}, nil
 		}
 		// Error reading the object - requeue the request.
 		return reconcile.Result{}, err
+
+	}
+	finalizerName := "finalizer.securitygroups.openstack.repl.info"
+	if instance.ObjectMeta.DeletionTimestamp.IsZero() {
+		log.Info("Debug: deletion timestamp is zero")
+		if !containsString(instance.ObjectMeta.Finalizers, finalizerName) {
+			instance.ObjectMeta.Finalizers = append(instance.ObjectMeta.Finalizers, finalizerName)
+			if err := r.Update(context.Background(), instance); err != nil {
+				log.Info("Debug", "err", err.Error())
+				return reconcile.Result{}, err
+			}
+		}
+	} else {
+		if containsString(instance.ObjectMeta.Finalizers, finalizerName) {
+			if err := r.deleteExternalDependency(instance); err != nil {
+				return reconcile.Result{}, err
+			}
+
+			instance.ObjectMeta.Finalizers = removeString(instance.ObjectMeta.Finalizers, finalizerName)
+			if err := r.Update(context.Background(), instance); err != nil {
+				return reconcile.Result{}, err
+			}
+		}
+		return reconcile.Result{}, nil
 	}
 
 	log.Info("Debug", "spec", instance.Spec)
@@ -219,4 +260,23 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 	}
 
 	return reconcile.Result{}, nil
+}
+
+func containsString(slice []string, s string) bool {
+	for _, item := range slice {
+		if item == s {
+			return true
+		}
+	}
+	return false
+}
+
+func removeString(slice []string, s string) (result []string) {
+	for _, item := range slice {
+		if item == s {
+			continue
+		}
+		result = append(result, item)
+	}
+	return
 }
