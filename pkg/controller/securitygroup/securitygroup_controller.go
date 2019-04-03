@@ -18,6 +18,8 @@ package securitygroup
 
 import (
 	"context"
+	"fmt"
+	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/groups"
 	"os"
 	"strconv"
 
@@ -167,8 +169,10 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 	}
 	log.Info("Debug", "tenant.ID", tenant.ID)
 
+	var sg groups.SecGroup
+
 	// Check if the SecurityGroup already exists
-	_, err = osClient.GetSecurityGroupByName(instance.Spec.Name)
+	sg, err = osClient.GetSecurityGroupByName(instance.Spec.Name)
 	if err != nil {
 		log.Info("Creating SG", "name", instance.Spec.Name)
 		sg, err := osClient.CreateSecurityGroup(instance.Spec.Name, "", tenant.ID)
@@ -195,16 +199,13 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 				EtherType:      "IPv4",
 				Protocol:       "TCP",
 			}
+			log.Info("Creating SG Rule", "cidr", rule.RemoteIpPrefix, "port", fmt.Sprintf("%d-%d", max, min))
 			err = osClient.AddSecurityGroupRule(createOpts)
 			if err != nil {
 				return reconcile.Result{}, err
 			}
+			log.Info("Success to create SG Rule", "cidr", rule.RemoteIpPrefix, "port", fmt.Sprintf("%d-%d", max, min))
 		}
-	}
-
-	sg, err := osClient.GetSecurityGroupByName(instance.Spec.Name)
-	if err != nil {
-		return reconcile.Result{}, nil
 	}
 
 	// Resource側のルールがない場合、SGにルールを追加
@@ -235,11 +236,13 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 				EtherType:      "IPv4",
 				Protocol:       "TCP",
 			}
+			log.Info("Creating SG Rule", "cidr", rule.RemoteIpPrefix, "port", fmt.Sprintf("%d-%d", min, max))
 
 			err = osClient.AddSecurityGroupRule(createOpts)
 			if err != nil {
 				return reconcile.Result{}, err
 			}
+			log.Info("Success to create SG Rule", "cidr", rule.RemoteIpPrefix, "port", fmt.Sprintf("%d-%d", min, max))
 		}
 	}
 
@@ -252,10 +255,12 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 			}
 		}
 		if delete {
+			log.Info("Deleting SG Rule", "cidr", existRule.RemoteIPPrefix, "port", fmt.Sprintf("%d-%d", existRule.PortRangeMin, existRule.PortRangeMax))
 			err = osClient.DeleteSecurityGroupRule(existRule.ID)
 			if err != nil {
 				return reconcile.Result{}, err
 			}
+			log.Info("Success to delete SG Rule", "cidr", existRule.RemoteIPPrefix, "port", fmt.Sprintf("%d-%d", existRule.PortRangeMin, existRule.PortRangeMax))
 		}
 	}
 
