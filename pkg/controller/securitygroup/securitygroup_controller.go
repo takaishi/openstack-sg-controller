@@ -319,7 +319,7 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 		if !containsString(existsNodeIDs, id) {
 			log.Info("Info", "Dettach SG from Server: ", strings.ToLower(id))
 			osClient.DettachSG(strings.ToLower(id), instance.Spec.Name)
-			instance.Status.Nodes = deleteFromSlice(instance.Status.Nodes, id)
+			instance.Status.Nodes = removeString(instance.Status.Nodes, id)
 		}
 	}
 
@@ -398,15 +398,4 @@ func hasKey(dict map[string]string, key string) bool {
 	_, ok := dict[key]
 
 	return ok
-}
-
-func deleteFromSlice(items []string, search string) []string {
-	r := []string{}
-	for _, item := range items {
-		if item != search {
-			r = append(r, item)
-		}
-	}
-
-	return r
 }
