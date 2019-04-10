@@ -121,12 +121,12 @@ func (r *ReconcileSecurityGroup) deleteExternalDependency(instance *openstackv1b
 		return err
 	}
 
-	labelSelector := ""
+	labelSelector := []string{}
 	if hasKey(instance.Spec.NodeSelector, "role") {
-		labelSelector = labelSelector + fmt.Sprintf("node-role.kubernetes.io/%s", instance.Spec.NodeSelector["role"])
+		labelSelector = append(labelSelector, fmt.Sprintf("node-role.kubernetes.io/%s", instance.Spec.NodeSelector["role"]))
 	}
 	listOpts := metav1.ListOptions{
-		LabelSelector: labelSelector,
+		LabelSelector: strings.Join(labelSelector, ","),
 	}
 	nodes, err := clientset.CoreV1().Nodes().List(listOpts)
 	if err != nil {
@@ -290,18 +290,38 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 		log.Info("Error", "Failed to NewForConfig", err.Error())
 		return reconcile.Result{}, err
 	}
-	labelSelector := ""
-	if hasKey(instance.Spec.NodeSelector, "role") {
-		labelSelector = labelSelector + fmt.Sprintf("node-role.kubernetes.io/%s", instance.Spec.NodeSelector["role"])
+	labelSelector := []string{}
+	for k, v := range instance.Spec.NodeSelector {
+		if k == "role" {
+			labelSelector = append(labelSelector, fmt.Sprintf("node-role.kubernetes.io/%s", v))
+		} else {
+			labelSelector = append(labelSelector, fmt.Sprintf("%s=%s", k, v))
+		}
+
 	}
 	listOpts := metav1.ListOptions{
-		LabelSelector: labelSelector,
+		LabelSelector: strings.Join(labelSelector, ","),
 	}
+	log.Info("Info", "labelSelector", labelSelector)
 	nodes, err := clientset.CoreV1().Nodes().List(listOpts)
 	if err != nil {
 		log.Info("Error", "Failed to NodeLIst", err.Error())
 		return reconcile.Result{}, err
 	}
+
+	existsNodeIDs := []string{}
+	for _, node := range nodes.Items {
+		existsNodeIDs = append(existsNodeIDs, node.Status.NodeInfo.SystemUUID)
+	}
+
+	for _, id := range instance.Status.Nodes {
+		if !containsString(existsNodeIDs, id) {
+			log.Info("Info", "Dettach SG from Server: ", strings.ToLower(id))
+			osClient.DettachSG(strings.ToLower(id), instance.Spec.Name)
+			instance.Status.Nodes = deleteFromSlice(instance.Status.Nodes, id)
+		}
+	}
+
 	for _, node := range nodes.Items {
 		id := node.Status.NodeInfo.SystemUUID
 		hasSg, err := osClient.ServerHasSG(strings.ToLower(id), instance.Spec.Name)
@@ -314,8 +334,15 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 		if !hasSg {
 			log.Info("Info", "Attach SG to Server: ", strings.ToLower(id))
 			osClient.AttachSG(strings.ToLower(id), instance.Spec.Name)
+			instance.Status.Nodes = append(instance.Status.Nodes, strings.ToLower(id))
 		}
 	}
+
+	if err := r.Update(context.Background(), instance); err != nil {
+		log.Info("Debug", "err", err.Error())
+		return reconcile.Result{}, err
+	}
+
 	return reconcile.Result{}, nil
 }
 
@@ -370,4 +397,15 @@ func hasKey(dict map[string]string, key string) bool {
 	_, ok := dict[key]
 
 	return ok
+}
+
+func deleteFromSlice(items []string, search string) []string {
+	r := []string{}
+	for _, item := range items {
+		if item != search {
+			r = append(r, item)
+		}
+	}
+
+	return r
 }
