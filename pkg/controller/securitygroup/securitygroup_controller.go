@@ -20,14 +20,19 @@ import (
 	"context"
 	"fmt"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/groups"
+	"k8s.io/client-go/kubernetes"
 	"os"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"strconv"
+	"strings"
 
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/rules"
 	"github.com/takaishi/openstack-sg-controller/pkg/openstack"
 
 	openstackv1beta1 "github.com/takaishi/openstack-sg-controller/pkg/apis/openstack/v1beta1"
 	appsv1 "k8s.io/api/apps/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -104,7 +109,49 @@ func (r *ReconcileSecurityGroup) deleteExternalDependency(instance *openstackv1b
 		return err
 	}
 
+	cfg, err := config.GetConfig()
+	if err != nil {
+		log.Info("Error", "Failed to get config", err.Error())
+		return err
+	}
+
+	clientset, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		log.Info("Error", "Failed to NewForConfig", err.Error())
+		return err
+	}
+
+	labelSelector := ""
+	if hasKey(instance.Spec.NodeSelector, "role") {
+		labelSelector = labelSelector + fmt.Sprintf("node-role.kubernetes.io/%s", instance.Spec.NodeSelector["role"])
+	}
+	listOpts := metav1.ListOptions{
+		LabelSelector: labelSelector,
+	}
+	nodes, err := clientset.CoreV1().Nodes().List(listOpts)
+	if err != nil {
+		log.Info("Error", "Failed to NodeLIst", err.Error())
+		return err
+	}
+	for _, node := range nodes.Items {
+		id := node.Status.NodeInfo.SystemUUID
+		hasSg, err := osClient.ServerHasSG(strings.ToLower(id), instance.Spec.Name)
+		if err != nil {
+			log.Info("Error", "Failed to ServerHasSG", err.Error())
+			return err
+		}
+
+		fmt.Printf("%v\n", hasSg)
+		if hasSg {
+			log.Info("Info", "Dettach SG from Server: ", strings.ToLower(id))
+			osClient.DettachSG(strings.ToLower(id), instance.Spec.Name)
+		}
+	}
+
 	err = osClient.DeleteSecurityGroup(sg.ID)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -177,6 +224,7 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 		log.Info("Creating SG", "name", instance.Spec.Name)
 		sg, err := osClient.CreateSecurityGroup(instance.Spec.Name, "", tenant.ID)
 		if err != nil {
+			log.Info("Error", "msg", err.Error())
 			return reconcile.Result{}, err
 		}
 		log.Info("Success creating SG", "name", instance.Spec.Name, "id", sg.ID)
@@ -184,9 +232,15 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 		for _, rule := range instance.Spec.Rules {
 			err = r.addRule(osClient, sg.ID, rule)
 			if err != nil {
+				log.Info("Error", "msg", err.Error())
 				return reconcile.Result{}, err
 			}
 		}
+	}
+	sg, err = osClient.GetSecurityGroupByName(instance.Spec.Name)
+	if err != nil {
+		return reconcile.Result{}, err
+
 	}
 
 	// Resource側のルールがない場合、SGにルールを追加
@@ -201,6 +255,7 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 		if !exists {
 			r.addRule(osClient, sg.ID, rule)
 			if err != nil {
+				log.Info("Error", "addRule", err.Error())
 				return reconcile.Result{}, err
 			}
 		}
@@ -224,6 +279,43 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 		}
 	}
 
+	cfg, err := config.GetConfig()
+	if err != nil {
+		log.Info("Error", "Failed to get config", err.Error())
+		return reconcile.Result{}, err
+	}
+
+	clientset, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		log.Info("Error", "Failed to NewForConfig", err.Error())
+		return reconcile.Result{}, err
+	}
+	labelSelector := ""
+	if hasKey(instance.Spec.NodeSelector, "role") {
+		labelSelector = labelSelector + fmt.Sprintf("node-role.kubernetes.io/%s", instance.Spec.NodeSelector["role"])
+	}
+	listOpts := metav1.ListOptions{
+		LabelSelector: labelSelector,
+	}
+	nodes, err := clientset.CoreV1().Nodes().List(listOpts)
+	if err != nil {
+		log.Info("Error", "Failed to NodeLIst", err.Error())
+		return reconcile.Result{}, err
+	}
+	for _, node := range nodes.Items {
+		id := node.Status.NodeInfo.SystemUUID
+		hasSg, err := osClient.ServerHasSG(strings.ToLower(id), instance.Spec.Name)
+		if err != nil {
+			log.Info("Error", "Failed to ServerHasSG", err.Error())
+			return reconcile.Result{}, err
+		}
+
+		fmt.Printf("%v\n", hasSg)
+		if !hasSg {
+			log.Info("Info", "Attach SG to Server: ", strings.ToLower(id))
+			osClient.AttachSG(strings.ToLower(id), instance.Spec.Name)
+		}
+	}
 	return reconcile.Result{}, nil
 }
 
@@ -272,4 +364,10 @@ func removeString(slice []string, s string) (result []string) {
 		result = append(result, item)
 	}
 	return
+}
+
+func hasKey(dict map[string]string, key string) bool {
+	_, ok := dict[key]
+
+	return ok
 }

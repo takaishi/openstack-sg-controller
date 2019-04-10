@@ -3,6 +3,8 @@ package openstack
 import (
 	"crypto/tls"
 	"fmt"
+	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/secgroups"
+	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -219,4 +221,56 @@ func (client *OpenStackClient) GetTenantByName(name string) (projects.Project, e
 		return projects.Project{}, errors.New(fmt.Sprintf("Found some tenant has same name '%s'", name))
 	}
 	return resp[0], nil
+}
+
+func (client *OpenStackClient) ServerHasSG(id string, sgName string) (bool, error) {
+	computeClient, err := _openstack.NewComputeV2(client.providerClient, gophercloud.EndpointOpts{Region: client.regionName})
+	if err != nil {
+		return false, err
+	}
+
+	res := servers.Get(computeClient, id)
+	if res.Err != nil {
+		return false, res.Err
+	}
+	server, err := res.Extract()
+	if res.Err != nil {
+		return false, res.Err
+	}
+	fmt.Printf("%+v\n", server.SecurityGroups)
+	for _, sg := range server.SecurityGroups {
+		if sg["name"] == sgName {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+func (client *OpenStackClient) AttachSG(id string, sgName string) error {
+	computeClient, err := _openstack.NewComputeV2(client.providerClient, gophercloud.EndpointOpts{Region: client.regionName})
+	if err != nil {
+		return err
+	}
+
+	res := secgroups.AddServer(computeClient, id, sgName)
+	if res.Err != nil {
+		return res.Err
+	}
+
+	return nil
+}
+
+func (client *OpenStackClient) DettachSG(id string, sgName string) error {
+	computeClient, err := _openstack.NewComputeV2(client.providerClient, gophercloud.EndpointOpts{Region: client.regionName})
+	if err != nil {
+		return err
+	}
+
+	res := secgroups.RemoveServer(computeClient, id, sgName)
+	if res.Err != nil {
+		return res.Err
+	}
+
+	return nil
 }
