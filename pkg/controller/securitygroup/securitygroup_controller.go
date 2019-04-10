@@ -25,6 +25,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/rules"
 	"github.com/takaishi/openstack-sg-controller/pkg/openstack"
@@ -343,7 +344,7 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 		return reconcile.Result{}, err
 	}
 
-	return reconcile.Result{}, nil
+	return reconcile.Result{RequeueAfter: 60 * time.Second}, nil
 }
 
 func (r *ReconcileSecurityGroup) addRule(osClient *openstack.OpenStackClient, id string, rule openstackv1beta1.SecurityGroupRule) error {
