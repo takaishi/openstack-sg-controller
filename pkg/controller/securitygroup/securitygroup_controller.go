@@ -311,7 +311,7 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 
 	existsNodeIDs := []string{}
 	for _, node := range nodes.Items {
-		existsNodeIDs = append(existsNodeIDs, node.Status.NodeInfo.SystemUUID)
+		existsNodeIDs = append(existsNodeIDs, strings.ToLower(node.Status.NodeInfo.SystemUUID))
 	}
 
 	for _, id := range instance.Status.Nodes {
