@@ -32,7 +32,6 @@ import (
 	"github.com/takaishi/openstack-sg-controller/pkg/openstack"
 
 	openstackv1beta1 "github.com/takaishi/openstack-sg-controller/pkg/apis/openstack/v1beta1"
-	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -74,16 +73,6 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 
 	// Watch for changes to SecurityGroup
 	err = c.Watch(&source.Kind{Type: &openstackv1beta1.SecurityGroup{}}, &handler.EnqueueRequestForObject{})
-	if err != nil {
-		return err
-	}
-
-	// TODO(user): Modify this to be the types you create
-	// Uncomment watch a Deployment created by SecurityGroup - change this for objects you create
-	err = c.Watch(&source.Kind{Type: &appsv1.Deployment{}}, &handler.EnqueueRequestForOwner{
-		IsController: true,
-		OwnerType:    &openstackv1beta1.SecurityGroup{},
-	})
 	if err != nil {
 		return err
 	}
