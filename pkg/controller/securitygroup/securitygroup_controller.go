@@ -19,13 +19,14 @@ package securitygroup
 import (
 	"context"
 	"fmt"
-	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/groups"
-	"k8s.io/client-go/kubernetes"
 	"os"
-	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/groups"
+	"k8s.io/client-go/kubernetes"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/rules"
 	"github.com/takaishi/openstack-sg-controller/pkg/openstack"
@@ -110,15 +111,9 @@ func (r *ReconcileSecurityGroup) deleteExternalDependency(instance *openstackv1b
 		return err
 	}
 
-	cfg, err := config.GetConfig()
+	clientset, err := kubeClient()
 	if err != nil {
-		log.Info("Error", "Failed to get config", err.Error())
-		return err
-	}
-
-	clientset, err := kubernetes.NewForConfig(cfg)
-	if err != nil {
-		log.Info("Error", "Failed to NewForConfig", err.Error())
+		log.Info("Error", "Failed to create kubeClient", err.Error())
 		return err
 	}
 
@@ -280,17 +275,12 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 		}
 	}
 
-	cfg, err := config.GetConfig()
+	clientset, err := kubeClient()
 	if err != nil {
-		log.Info("Error", "Failed to get config", err.Error())
+		log.Info("Error", "Failed to create kubeClient", err.Error())
 		return reconcile.Result{}, err
 	}
 
-	clientset, err := kubernetes.NewForConfig(cfg)
-	if err != nil {
-		log.Info("Error", "Failed to NewForConfig", err.Error())
-		return reconcile.Result{}, err
-	}
 	labelSelector := []string{}
 	for k, v := range instance.Spec.NodeSelector {
 		if k == "role" {
@@ -375,6 +365,21 @@ func (r *ReconcileSecurityGroup) addRule(osClient *openstack.OpenStackClient, id
 	return nil
 }
 
+func kubeClient() (*kubernetes.Clientset, error) {
+	cfg, err := config.GetConfig()
+	if err != nil {
+		log.Info("Error", "Failed to get config", err.Error())
+		return nil, err
+	}
+
+	clientset, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		log.Info("Error", "Failed to NewForConfig", err.Error())
+		return nil, err
+	}
+
+	return clientset, nil
+}
 func containsString(slice []string, s string) bool {
 	for _, item := range slice {
 		if item == s {
