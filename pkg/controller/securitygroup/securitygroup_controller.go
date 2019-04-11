@@ -281,20 +281,8 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 		return reconcile.Result{}, err
 	}
 
-	labelSelector := []string{}
-	for k, v := range instance.Spec.NodeSelector {
-		if k == "role" {
-			labelSelector = append(labelSelector, fmt.Sprintf("node-role.kubernetes.io/%s", v))
-		} else {
-			labelSelector = append(labelSelector, fmt.Sprintf("%s=%s", k, v))
-		}
-
-	}
-	listOpts := metav1.ListOptions{
-		LabelSelector: strings.Join(labelSelector, ","),
-	}
 	log.Info("Info", "labelSelector", labelSelector)
-	nodes, err := clientset.CoreV1().Nodes().List(listOpts)
+	nodes, err := clientset.CoreV1().Nodes().List(metav1.ListOptions{LabelSelector: labelSelector(instance)})
 	if err != nil {
 		log.Info("Error", "Failed to NodeLIst", err.Error())
 		return reconcile.Result{}, err
@@ -379,6 +367,20 @@ func kubeClient() (*kubernetes.Clientset, error) {
 	}
 
 	return clientset, nil
+}
+
+func labelSelector(instance *openstackv1beta1.SecurityGroup) string {
+	labelSelector := []string{}
+	for k, v := range instance.Spec.NodeSelector {
+		if k == "role" {
+			labelSelector = append(labelSelector, fmt.Sprintf("node-role.kubernetes.io/%s", v))
+		} else {
+			labelSelector = append(labelSelector, fmt.Sprintf("%s=%s", k, v))
+		}
+
+	}
+
+	return strings.Join(labelSelector, ",")
 }
 func containsString(slice []string, s string) bool {
 	for _, item := range slice {
