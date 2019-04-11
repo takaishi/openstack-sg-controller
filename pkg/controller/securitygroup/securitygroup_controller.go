@@ -281,7 +281,6 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 		return reconcile.Result{}, err
 	}
 
-	log.Info("Info", "labelSelector", labelSelector)
 	nodes, err := clientset.CoreV1().Nodes().List(metav1.ListOptions{LabelSelector: labelSelector(instance)})
 	if err != nil {
 		log.Info("Error", "Failed to NodeLIst", err.Error())
