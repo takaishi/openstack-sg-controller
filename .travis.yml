@@ -2,14 +2,17 @@
 language: go
 env:
   - GO111MODULE=on
+  - TEST_ASSET_KUBECTL=~/kubebuilder_1.0.8_linux_amd64/bin/kubectl
+  - TEST_ASSET_KUBE_APISERVER=~/kubebuilder_1.0.8_linux_amd64/bin/kube-apiserver
+  - TEST_ASSET_ETCD=~/kubebuilder_1.0.8_linux_amd64/bin/etcd
+
 go:
   - "1.12.x"
 
 script:
+  - pwd
   - wget https://github.com/kubernetes-sigs/kubebuilder/releases/download/v1.0.8/kubebuilder_1.0.8_linux_amd64.tar.gz
   - tar xvzf kubebuilder_1.0.8_linux_amd64.tar.gz
-  - mkdir -p /usr/local/kubebuilder/bin
-  - cp kubebuilder_1.0.8_linux_amd64/bin/* /usr/local/kubebuilder/bin/
   - make test
 
 # calls goreleaser
