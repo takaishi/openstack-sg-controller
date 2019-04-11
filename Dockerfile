@@ -8,6 +8,9 @@ COPY cmd/    cmd/
 COPY vendor/ vendor/
 
 # Build
+ENV GO111MODULE on
+
+RUN go get github.com/takaishi/openstack-sg-controller/cmd/manager
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o manager github.com/takaishi/openstack-sg-controller/cmd/manager
 
 # Copy the controller-manager into a thin image
