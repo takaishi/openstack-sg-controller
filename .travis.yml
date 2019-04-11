@@ -1,10 +1,11 @@
 ---
 language: go
 env:
-  - GO111MODULE=on
-  - TEST_ASSET_KUBECTL=~/kubebuilder_1.0.8_linux_amd64/bin/kubectl
-  - TEST_ASSET_KUBE_APISERVER=~/kubebuilder_1.0.8_linux_amd64/bin/kube-apiserver
-  - TEST_ASSET_ETCD=~/kubebuilder_1.0.8_linux_amd64/bin/etcd
+  global:
+    - GO111MODULE=on
+    - TEST_ASSET_KUBECTL=~/kubebuilder_1.0.8_linux_amd64/bin/kubectl
+    - TEST_ASSET_KUBE_APISERVER=~/kubebuilder_1.0.8_linux_amd64/bin/kube-apiserver
+    - TEST_ASSET_ETCD=~/kubebuilder_1.0.8_linux_amd64/bin/etcd
 
 go:
   - "1.12.x"
