@@ -6,6 +6,10 @@ go:
   - "1.12.x"
 
 script:
+  - wget https://github.com/kubernetes-sigs/kubebuilder/releases/download/v1.0.8/kubebuilder_1.0.8_linux_amd64.tar.gz
+  - tar xvzf kubebuilder_1.0.8_linux_amd64.tar.gz
+  - mkldir -p /usr/local/kubebuilder/bin
+  - cp kubebuilder_1.0.8_linux_amd64/bin/* /usr/local/kubebuilder/bin/
   - make test
 
 # calls goreleaser
