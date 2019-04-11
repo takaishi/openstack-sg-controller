@@ -31,6 +31,18 @@ func TestStorageSecurityGroup(t *testing.T) {
 		Namespace: "default",
 	}
 	created := &SecurityGroup{
+		Spec: SecurityGroupSpec{
+			NodeSelector: map[string]string{
+				"foo": "bar",
+			},
+			Rules: []SecurityGroupRule{
+				{
+					PortRangeMax:   "8888",
+					PortRangeMin:   "8888",
+					RemoteIpPrefix: "127.0.0.1",
+				},
+			},
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "foo",
 			Namespace: "default",
