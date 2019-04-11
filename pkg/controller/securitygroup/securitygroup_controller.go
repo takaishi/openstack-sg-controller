@@ -89,7 +89,7 @@ type ReconcileSecurityGroup struct {
 }
 
 func (r *ReconcileSecurityGroup) deleteExternalDependency(instance *openstackv1beta1.SecurityGroup) error {
-	log.Info("Debug: deleting the external dependencies")
+	log.Info("Info", "deleting the external dependencies", instance.Spec.Name)
 
 	osClient, err := openstack.NewClient()
 	if err != nil {
@@ -126,7 +126,6 @@ func (r *ReconcileSecurityGroup) deleteExternalDependency(instance *openstackv1b
 			return err
 		}
 
-		fmt.Printf("%v\n", hasSg)
 		if hasSg {
 			log.Info("Info", "Dettach SG from Server: ", strings.ToLower(id))
 			osClient.DettachSG(strings.ToLower(id), instance.Spec.Name)
@@ -156,7 +155,7 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 	err := r.Get(context.TODO(), request.NamespacedName, instance)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			log.Info("Debug: instance not found")
+			log.Info("Debug: instance not found", "SecurityGroup", instance.Name)
 
 			return reconcile.Result{}, nil
 		}
@@ -188,8 +187,6 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 		return reconcile.Result{}, nil
 	}
 
-	log.Info("Debug", "spec", instance.Spec)
-
 	osClient, err := openstack.NewClient()
 	if err != nil {
 		return reconcile.Result{}, err
@@ -199,7 +196,6 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 	if err != nil {
 		return reconcile.Result{}, err
 	}
-	log.Info("Debug", "tenant.ID", tenant.ID)
 
 	var sg groups.SecGroup
 
@@ -272,7 +268,7 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 
 	nodes, err := clientset.CoreV1().Nodes().List(metav1.ListOptions{LabelSelector: labelSelector(instance)})
 	if err != nil {
-		log.Info("Error", "Failed to NodeLIst", err.Error())
+		log.Info("Error", "Failed to NodeList", err.Error())
 		return reconcile.Result{}, err
 	}
 
@@ -283,7 +279,7 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 
 	for _, id := range instance.Status.Nodes {
 		if !containsString(existsNodeIDs, id) {
-			log.Info("Info", "Dettach SG from Server: ", strings.ToLower(id))
+			log.Info("Info", "Dettach SG from Server", strings.ToLower(id))
 			osClient.DettachSG(strings.ToLower(id), instance.Spec.Name)
 			instance.Status.Nodes = removeString(instance.Status.Nodes, id)
 		}
@@ -297,9 +293,8 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 			return reconcile.Result{}, err
 		}
 
-		fmt.Printf("%v\n", hasSg)
 		if !hasSg {
-			log.Info("Info", "Attach SG to Server: ", strings.ToLower(id))
+			log.Info("Info", "Attach SG to Server", strings.ToLower(id))
 			osClient.AttachSG(strings.ToLower(id), instance.Spec.Name)
 			instance.Status.Nodes = append(instance.Status.Nodes, strings.ToLower(id))
 		}

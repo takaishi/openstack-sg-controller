@@ -35,7 +35,7 @@ func NewClient() (*OpenStackClient, error) {
 
 	authOpts, err := _openstack.AuthOptionsFromEnv()
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "Failed to create AuthOptions from env")
 	}
 
 	client.providerClient, err = _openstack.NewClient(authOpts.IdentityEndpoint)
@@ -237,7 +237,6 @@ func (client *OpenStackClient) ServerHasSG(id string, sgName string) (bool, erro
 	if res.Err != nil {
 		return false, res.Err
 	}
-	fmt.Printf("%+v\n", server.SecurityGroups)
 	for _, sg := range server.SecurityGroups {
 		if sg["name"] == sgName {
 			return true, nil
