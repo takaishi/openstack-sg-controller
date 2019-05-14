@@ -37,9 +37,12 @@ func TestStorageSecurityGroup(t *testing.T) {
 			},
 			Rules: []SecurityGroupRule{
 				{
+					Direction:      "ingress",
 					PortRangeMax:   "8888",
 					PortRangeMin:   "8888",
 					RemoteIpPrefix: "127.0.0.1",
+					EtherType:      "IPv4",
+					Protocol:       "TCP",
 				},
 			},
 		},

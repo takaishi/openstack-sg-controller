@@ -34,9 +34,12 @@ type SecurityGroupSpec struct {
 }
 
 type SecurityGroupRule struct {
+	Direction      string `json:"direction"`
 	PortRangeMax   string `json:"portRangeMax"`
 	PortRangeMin   string `json:"portRangeMin"`
 	RemoteIpPrefix string `json:"remoteIpPrefix"`
+	EtherType      string `json:"etherType"`
+	Protocol       string `json:"protocol"`
 }
 
 // SecurityGroupStatus defines the observed state of SecurityGroup

@@ -34,7 +34,7 @@ import (
 	openstackv1beta1 "github.com/takaishi/openstack-sg-controller/pkg/apis/openstack/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"k8s.io/apimachinery/pkg/api/errors"
+	errors_ "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -154,7 +154,7 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 	instance := &openstackv1beta1.SecurityGroup{}
 	err := r.Get(context.TODO(), request.NamespacedName, instance)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if errors_.IsNotFound(err) {
 			log.Info("Debug: instance not found", "SecurityGroup", instance.Name)
 
 			return reconcile.Result{}, nil
@@ -318,13 +318,13 @@ func (r *ReconcileSecurityGroup) addRule(osClient *openstack.OpenStackClient, id
 		return err
 	}
 	createOpts := rules.CreateOpts{
-		Direction:      "ingress",
+		Direction:      rules.RuleDirection(rule.Direction),
 		SecGroupID:     id,
 		PortRangeMax:   max,
 		PortRangeMin:   min,
 		RemoteIPPrefix: rule.RemoteIpPrefix,
-		EtherType:      "IPv4",
-		Protocol:       "TCP",
+		EtherType:      rules.RuleEtherType(rule.EtherType),
+		Protocol:       rules.RuleProtocol(rule.Protocol),
 	}
 	log.Info("Creating SG Rule", "cidr", rule.RemoteIpPrefix, "port", fmt.Sprintf("%d-%d", max, min))
 	err = osClient.AddSecurityGroupRule(createOpts)

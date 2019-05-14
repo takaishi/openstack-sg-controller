@@ -27,6 +27,44 @@ spec:
         metadata:
           type: object
         spec:
+          properties:
+            name:
+              type: string
+            nodeSelector:
+              description: 'INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
+                Important: Run "make" to regenerate code after modifying this file'
+              type: object
+            rules:
+              items:
+                properties:
+                  direction:
+                    type: string
+                  etherType:
+                    type: string
+                  portRangeMax:
+                    type: string
+                  portRangeMin:
+                    type: string
+                  protocol:
+                    type: string
+                  remoteIpPrefix:
+                    type: string
+                required:
+                - direction
+                - portRangeMax
+                - portRangeMin
+                - remoteIpPrefix
+                - etherType
+                - protocol
+                type: object
+              type: array
+            tenant:
+              type: string
+          required:
+          - nodeSelector
+          - name
+          - tenant
+          - rules
           type: object
         status:
           type: object
