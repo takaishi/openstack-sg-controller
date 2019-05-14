@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -228,7 +227,7 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 	for _, rule := range instance.Spec.Rules {
 		exists := false
 		for _, existsRule := range sg.Rules {
-			if rule.RemoteIpPrefix == existsRule.RemoteIPPrefix && rule.PortRangeMax == strconv.Itoa(existsRule.PortRangeMax) && rule.PortRangeMin == strconv.Itoa(existsRule.PortRangeMin) {
+			if rule.RemoteIpPrefix == existsRule.RemoteIPPrefix && rule.PortRangeMax == existsRule.PortRangeMax && rule.PortRangeMin == existsRule.PortRangeMin {
 				exists = true
 			}
 		}
@@ -246,7 +245,7 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 	for _, existRule := range sg.Rules {
 		delete := true
 		for _, rule := range instance.Spec.Rules {
-			if existRule.RemoteIPPrefix == rule.RemoteIpPrefix && strconv.Itoa(existRule.PortRangeMax) == rule.PortRangeMax && strconv.Itoa(existRule.PortRangeMin) == rule.PortRangeMin {
+			if existRule.RemoteIPPrefix == rule.RemoteIpPrefix && existRule.PortRangeMax == rule.PortRangeMax && existRule.PortRangeMin == rule.PortRangeMin {
 				delete = false
 			}
 		}
@@ -309,29 +308,21 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 }
 
 func (r *ReconcileSecurityGroup) addRule(osClient *openstack.OpenStackClient, id string, rule openstackv1beta1.SecurityGroupRule) error {
-	max, err := strconv.Atoi(rule.PortRangeMax)
-	if err != nil {
-		return err
-	}
-	min, err := strconv.Atoi(rule.PortRangeMin)
-	if err != nil {
-		return err
-	}
 	createOpts := rules.CreateOpts{
 		Direction:      rules.RuleDirection(rule.Direction),
 		SecGroupID:     id,
-		PortRangeMax:   max,
-		PortRangeMin:   min,
+		PortRangeMax:   rule.PortRangeMax,
+		PortRangeMin:   rule.PortRangeMin,
 		RemoteIPPrefix: rule.RemoteIpPrefix,
 		EtherType:      rules.RuleEtherType(rule.EtherType),
 		Protocol:       rules.RuleProtocol(rule.Protocol),
 	}
-	log.Info("Creating SG Rule", "cidr", rule.RemoteIpPrefix, "port", fmt.Sprintf("%d-%d", max, min))
-	err = osClient.AddSecurityGroupRule(createOpts)
+	log.Info("Creating SG Rule", "cidr", rule.RemoteIpPrefix, "port", fmt.Sprintf("%d-%d", rule.PortRangeMin, rule.PortRangeMax))
+	err := osClient.AddSecurityGroupRule(createOpts)
 	if err != nil {
 		return err
 	}
-	log.Info("Success to create SG Rule", "cidr", rule.RemoteIpPrefix, "port", fmt.Sprintf("%d-%d", max, min))
+	log.Info("Success to create SG Rule", "cidr", rule.RemoteIpPrefix, "port", fmt.Sprintf("%d-%d", rule.PortRangeMin, rule.PortRangeMax))
 
 	return nil
 }
