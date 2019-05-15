@@ -1,0 +1,7 @@
+namespace: openstack-sg-controller-system
+namePrefix: openstack-sg-controller-
+resources:
+- crds/openstack_v1beta1_securitygroup.yaml
+- rbac_role.yaml
+- rbac_role_binding.yaml
+- deployment.yaml
