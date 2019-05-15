@@ -38,47 +38,49 @@ spec:
               items:
                 properties:
                   direction:
-                    type: string
                     enum:
-                      - ingress
-                      - egress
+                    - ingress
+                    - egress
+                    type: string
                   etherType:
-                    type: string
                     enum:
-                      - IPv4
-                      - IPv6
+                    - IPv4
+                    - IPv6
+                    type: string
                   portRangeMax:
-                    type: integer
-                    minimum: 0
+                    format: int64
                     maximum: 65535
+                    minimum: 0
+                    type: integer
                   portRangeMin:
-                    type: integer
-                    minimum: 0
+                    format: int64
                     maximum: 65535
+                    minimum: 0
+                    type: integer
                   protocol:
-                    type: string
                     enum:
-                      - ah
-                      - dccp
-                      - egp
-                      - esp
-                      - gre
-                      - icmp
-                      - igmp
-                      - ipv6-encap
-                      - ipv6-frag
-                      - ipv6-icmp
-                      - ipv6-nonxt
-                      - ipv6-opts
-                      - ipv6-route
-                      - ospf
-                      - pgm
-                      - rsvp
-                      - sctp
-                      - tcp
-                      - udp
-                      - udplite
-                      - vrrp
+                    - ah
+                    - dccp
+                    - egp
+                    - esp
+                    - gre
+                    - icmp
+                    - igmp
+                    - ipv6-encap
+                    - ipv6-frag
+                    - ipv6-icmp
+                    - ipv6-nonxt
+                    - ipv6-opts
+                    - ipv6-route
+                    - ospf
+                    - pgm
+                    - rsvp
+                    - sctp
+                    - tcp
+                    - udp
+                    - udplite
+                    - vrrp
+                    type: string
                   remoteIpPrefix:
                     type: string
                 required:

@@ -29,17 +29,28 @@ type SecurityGroupSpec struct {
 	// Important: Run "make" to regenerate code after modifying this file
 	NodeSelector map[string]string   `json:"nodeSelector"`
 	Name         string              `json:"name"`
-	Tenant       string              `json:"tenant"`
+	Tenant       string              `json:"tenant,omitempty"`
 	Rules        []SecurityGroupRule `json:"rules"`
 }
 
 type SecurityGroupRule struct {
-	Direction      string `json:"direction"`
-	PortRangeMax   int    `json:"portRangeMax"`
+	// +kubebuilder:validation:Enum=ingress,egress
+	Direction string `json:"direction"`
+
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=65535
+	PortRangeMax int `json:"portRangeMax"`
+
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=65535
 	PortRangeMin   int    `json:"portRangeMin"`
 	RemoteIpPrefix string `json:"remoteIpPrefix"`
-	EtherType      string `json:"etherType"`
-	Protocol       string `json:"protocol"`
+
+	// +kubebuilder:validation:Enum=IPv4,IPv6
+	EtherType string `json:"etherType"`
+
+	// +kubebuilder:validation:Enum=ah,dccp,egp,esp,gre,icmp,igmp,ipv6-encap,ipv6-frag,ipv6-icmp,ipv6-nonxt,ipv6-opts,ipv6-route,ospf,pgm,rsvp,sctp,tcp,udp,udplite,vrrp
+	Protocol string `json:"protocol"`
 }
 
 // SecurityGroupStatus defines the observed state of SecurityGroup
