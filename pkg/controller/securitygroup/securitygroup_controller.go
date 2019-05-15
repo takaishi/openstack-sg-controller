@@ -161,9 +161,9 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 		}
 		// Error reading the object - requeue the request.
 		return reconcile.Result{}, err
-
 	}
 
+	log.Info("Info: Start reconcile", "sg", instance.Name)
 	if instance.ObjectMeta.DeletionTimestamp.IsZero() {
 		log.Info("Debug: deletion timestamp is zero")
 		if err := r.setFinalizer(instance); err != nil {
@@ -287,10 +287,11 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 	}
 
 	if err := r.Update(context.Background(), instance); err != nil {
-		log.Info("Debug", "err", err.Error())
+		log.Info("Debug", "failed to update sg", err.Error())
 		return reconcile.Result{}, err
 	}
 
+	log.Info("Info: Success reconcile", "sg", instance.Name)
 	return reconcile.Result{RequeueAfter: 60 * time.Second}, nil
 }
 
