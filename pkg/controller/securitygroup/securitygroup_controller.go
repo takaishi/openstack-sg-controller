@@ -170,17 +170,7 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 			return reconcile.Result{}, err
 		}
 	} else {
-		if containsString(instance.ObjectMeta.Finalizers, finalizerName) {
-			if err := r.deleteExternalDependency(instance); err != nil {
-				return reconcile.Result{}, err
-			}
-
-			instance.ObjectMeta.Finalizers = removeString(instance.ObjectMeta.Finalizers, finalizerName)
-			if err := r.Update(context.Background(), instance); err != nil {
-				return reconcile.Result{}, err
-			}
-		}
-		return reconcile.Result{}, nil
+		return r.runFinalizer(instance)
 	}
 
 	osClient, err := openstack.NewClient()
@@ -334,6 +324,21 @@ func (r *ReconcileSecurityGroup) setFinalizer(sg *openstackv1beta1.SecurityGroup
 	}
 
 	return nil
+}
+
+func (r *ReconcileSecurityGroup) runFinalizer(sg *openstackv1beta1.SecurityGroup) (reconcile.Result, error) {
+	if containsString(sg.ObjectMeta.Finalizers, finalizerName) {
+		if err := r.deleteExternalDependency(sg); err != nil {
+			return reconcile.Result{}, err
+		}
+
+		sg.ObjectMeta.Finalizers = removeString(sg.ObjectMeta.Finalizers, finalizerName)
+		if err := r.Update(context.Background(), sg); err != nil {
+			return reconcile.Result{}, err
+		}
+	}
+
+	return reconcile.Result{}, nil
 }
 
 func kubeClient() (*kubernetes.Clientset, error) {
