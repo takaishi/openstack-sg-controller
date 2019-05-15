@@ -96,13 +96,13 @@ type ReconcileSecurityGroup struct {
 }
 
 func (r *ReconcileSecurityGroup) deleteExternalDependency(instance *openstackv1beta1.SecurityGroup) error {
-	log.Info("Info", "deleting the external dependencies", instance.Spec.Name)
+	log.Info("Info", "deleting the external dependencies", instance.Status.Name)
 
 	osClient, err := openstack.NewClient()
 	if err != nil {
 		return err
 	}
-	sg, err := osClient.GetSecurityGroupByName(instance.Spec.Name)
+	sg, err := osClient.GetSecurityGroup(instance.Status.ID)
 	if err != nil {
 		return err
 	}
@@ -127,7 +127,7 @@ func (r *ReconcileSecurityGroup) deleteExternalDependency(instance *openstackv1b
 	}
 	for _, node := range nodes.Items {
 		id := node.Status.NodeInfo.SystemUUID
-		hasSg, err := osClient.ServerHasSG(strings.ToLower(id), instance.Spec.Name)
+		hasSg, err := osClient.ServerHasSG(strings.ToLower(id), instance.Status.Name)
 		if err != nil {
 			log.Info("Error", "Failed to ServerHasSG", err.Error())
 			return err
@@ -135,7 +135,7 @@ func (r *ReconcileSecurityGroup) deleteExternalDependency(instance *openstackv1b
 
 		if hasSg {
 			log.Info("Info", "Dettach SG from Server: ", strings.ToLower(id))
-			osClient.DettachSG(strings.ToLower(id), instance.Spec.Name)
+			osClient.DettachSG(strings.ToLower(id), instance.Status.Name)
 		}
 	}
 
