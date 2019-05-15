@@ -19,6 +19,8 @@ package securitygroup
 import (
 	"context"
 	"fmt"
+	"github.com/gophercloud/gophercloud"
+	"math/rand"
 	"os"
 	"strings"
 	"time"
@@ -29,6 +31,7 @@ import (
 
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/rules"
 	"github.com/takaishi/openstack-sg-controller/pkg/openstack"
+	utilrand "k8s.io/apimachinery/pkg/util/rand"
 
 	openstackv1beta1 "github.com/takaishi/openstack-sg-controller/pkg/apis/openstack/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -42,6 +45,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 	"sigs.k8s.io/controller-runtime/pkg/source"
+)
+
+const (
+	randomLength = 5
 )
 
 var log = logf.Log.WithName("controller")
@@ -132,6 +139,7 @@ func (r *ReconcileSecurityGroup) deleteExternalDependency(instance *openstackv1b
 		}
 	}
 
+	log.Info("Info", "Delete SG", "name", sg.Name, "id", sg.ID)
 	err = osClient.DeleteSecurityGroup(sg.ID)
 	if err != nil {
 		return err
@@ -183,31 +191,29 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 		return reconcile.Result{}, err
 	}
 
-	var sg groups.SecGroup
+	var sg *groups.SecGroup
 
 	// Check if the SecurityGroup already exists
-	sg, err = osClient.GetSecurityGroupByName(instance.Spec.Name)
+	sg, err = osClient.GetSecurityGroup(instance.Status.ID)
 	if err != nil {
-		log.Info("Creating SG", "name", instance.Spec.Name)
-		sg, err := osClient.CreateSecurityGroup(instance.Spec.Name, "", tenant.ID)
-		if err != nil {
-			log.Info("Error", "msg", err.Error())
-			return reconcile.Result{}, err
-		}
-		log.Info("Success creating SG", "name", instance.Spec.Name, "id", sg.ID)
+		switch err.(type) {
+		case gophercloud.ErrDefault404:
+			rand.Seed(time.Now().Unix())
 
-		for _, rule := range instance.Spec.Rules {
-			err = r.addRule(osClient, sg.ID, rule)
+			log.Info("Creating SG", "name", instance.Spec.Name)
+			name := fmt.Sprintf("%s-%s", instance.Spec.Name, utilrand.String(randomLength))
+
+			sg, err = osClient.CreateSecurityGroup(name, "", tenant.ID)
 			if err != nil {
 				log.Info("Error", "msg", err.Error())
-				return reconcile.Result{}, err
 			}
+			instance.Status.ID = sg.ID
+			instance.Status.Name = sg.Name
+			log.Info("Success creating SG", "name", instance.Spec.Name, "id", sg.ID)
+		default:
+			log.Info("Debug: errorrrrrr")
+			return reconcile.Result{}, err
 		}
-	}
-	sg, err = osClient.GetSecurityGroupByName(instance.Spec.Name)
-	if err != nil {
-		return reconcile.Result{}, err
-
 	}
 
 	// Resource側のルールがない場合、SGにルールを追加
@@ -266,14 +272,14 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 	for _, id := range instance.Status.Nodes {
 		if !containsString(existsNodeIDs, id) {
 			log.Info("Info", "Dettach SG from Server", strings.ToLower(id))
-			osClient.DettachSG(strings.ToLower(id), instance.Spec.Name)
+			osClient.DettachSG(strings.ToLower(id), sg.Name)
 			instance.Status.Nodes = removeString(instance.Status.Nodes, id)
 		}
 	}
 
 	for _, node := range nodes.Items {
 		id := node.Status.NodeInfo.SystemUUID
-		hasSg, err := osClient.ServerHasSG(strings.ToLower(id), instance.Spec.Name)
+		hasSg, err := osClient.ServerHasSG(strings.ToLower(id), sg.Name)
 		if err != nil {
 			log.Info("Error", "Failed to ServerHasSG", err.Error())
 			return reconcile.Result{}, err
@@ -281,7 +287,10 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 
 		if !hasSg {
 			log.Info("Info", "Attach SG to Server", strings.ToLower(id))
-			osClient.AttachSG(strings.ToLower(id), instance.Spec.Name)
+			if err = osClient.AttachSG(strings.ToLower(id), sg.Name); err != nil {
+				log.Info("Debug", "failed to attach sg", err.Error())
+				return reconcile.Result{}, err
+			}
 			instance.Status.Nodes = append(instance.Status.Nodes, strings.ToLower(id))
 		}
 	}

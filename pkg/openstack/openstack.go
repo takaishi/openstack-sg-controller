@@ -136,6 +136,16 @@ func (client *OpenStackClient) DeleteSecurityGroupRule(id string) error {
 
 	return nil
 }
+
+func (client *OpenStackClient) GetSecurityGroup(id string) (*groups.SecGroup, error) {
+	networkClient, err := _openstack.NewNetworkV2(client.providerClient, gophercloud.EndpointOpts{Region: client.regionName})
+	if err != nil {
+		return nil, err
+	}
+
+	return groups.Get(networkClient, id).Extract()
+}
+
 func (client *OpenStackClient) GetSecurityGroupByName(name string) (groups.SecGroup, error) {
 	networkClient, err := _openstack.NewNetworkV2(client.providerClient, gophercloud.EndpointOpts{Region: client.regionName})
 	if err != nil {
