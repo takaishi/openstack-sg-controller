@@ -163,7 +163,7 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 		return reconcile.Result{}, err
 
 	}
-	finalizerName := "finalizer.securitygroups.openstack.repl.info"
+
 	if instance.ObjectMeta.DeletionTimestamp.IsZero() {
 		log.Info("Debug: deletion timestamp is zero")
 		if err := r.setFinalizer(instance); err != nil {
