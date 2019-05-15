@@ -317,10 +317,6 @@ func (r *ReconcileSecurityGroup) addRule(osClient *openstack.OpenStackClient, id
 func (r *ReconcileSecurityGroup) setFinalizer(sg *openstackv1beta1.SecurityGroup) error {
 	if !containsString(sg.ObjectMeta.Finalizers, finalizerName) {
 		sg.ObjectMeta.Finalizers = append(sg.ObjectMeta.Finalizers, finalizerName)
-		if err := r.Update(context.Background(), sg); err != nil {
-			log.Info("Debug", "err", err.Error())
-			return  err
-		}
 	}
 
 	return nil
