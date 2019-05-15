@@ -45,6 +45,7 @@ import (
 )
 
 var log = logf.Log.WithName("controller")
+var finalizerName = "finalizer.securitygroups.openstack.repl.info"
 
 /**
 * USER ACTION REQUIRED: This is a scaffold file intended for the user to modify with their own Controller
@@ -165,12 +166,8 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 	finalizerName := "finalizer.securitygroups.openstack.repl.info"
 	if instance.ObjectMeta.DeletionTimestamp.IsZero() {
 		log.Info("Debug: deletion timestamp is zero")
-		if !containsString(instance.ObjectMeta.Finalizers, finalizerName) {
-			instance.ObjectMeta.Finalizers = append(instance.ObjectMeta.Finalizers, finalizerName)
-			if err := r.Update(context.Background(), instance); err != nil {
-				log.Info("Debug", "err", err.Error())
-				return reconcile.Result{}, err
-			}
+		if err := r.setFinalizer(instance); err != nil {
+			return reconcile.Result{}, err
 		}
 	} else {
 		if containsString(instance.ObjectMeta.Finalizers, finalizerName) {
@@ -323,6 +320,18 @@ func (r *ReconcileSecurityGroup) addRule(osClient *openstack.OpenStackClient, id
 		return err
 	}
 	log.Info("Success to create SG Rule", "cidr", rule.RemoteIpPrefix, "port", fmt.Sprintf("%d-%d", rule.PortRangeMin, rule.PortRangeMax))
+
+	return nil
+}
+
+func (r *ReconcileSecurityGroup) setFinalizer(sg *openstackv1beta1.SecurityGroup) error {
+	if !containsString(sg.ObjectMeta.Finalizers, finalizerName) {
+		sg.ObjectMeta.Finalizers = append(sg.ObjectMeta.Finalizers, finalizerName)
+		if err := r.Update(context.Background(), sg); err != nil {
+			log.Info("Debug", "err", err.Error())
+			return  err
+		}
+	}
 
 	return nil
 }
