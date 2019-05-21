@@ -22,6 +22,23 @@ import (
 
 var log = logf.Log.WithName("controller")
 
+type OpenStackClientInterface interface {
+	CreateSecurityGroup(name string, description string, tenantID string) (*groups.SecGroup, error)
+	DeleteSecurityGroup(id string) error
+	AddSecurityGroupRule(opts rules.CreateOpts) error
+	DeleteSecurityGroupRule(id string) error
+	GetSecurityGroup(id string) (*groups.SecGroup, error)
+	GetSecurityGroupByName(name string) (groups.SecGroup, error)
+
+	GetTenant(id string) (tenants.Tenant, error)
+	GetTenantByName(name string) (projects.Project, error)
+
+	ServerHasSG(id string, sgName string) (bool, error)
+	AttachSG(id string, sgName string) error
+	DettachSG(id string, sgName string) error
+}
+
+
 type OpenStackClient struct {
 	providerClient *gophercloud.ProviderClient
 	regionName     string
