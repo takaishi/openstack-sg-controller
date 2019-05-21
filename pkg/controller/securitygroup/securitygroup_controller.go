@@ -92,17 +92,14 @@ var _ reconcile.Reconciler = &ReconcileSecurityGroup{}
 // ReconcileSecurityGroup reconciles a SecurityGroup object
 type ReconcileSecurityGroup struct {
 	client.Client
-	scheme *runtime.Scheme
+	scheme   *runtime.Scheme
+	osClient openstack.OpenStackClientInterface
 }
 
 func (r *ReconcileSecurityGroup) deleteExternalDependency(instance *openstackv1beta1.SecurityGroup) error {
 	log.Info("Info", "deleting the external dependencies", instance.Status.Name)
 
-	osClient, err := openstack.NewClient()
-	if err != nil {
-		return err
-	}
-	sg, err := osClient.GetSecurityGroup(instance.Status.ID)
+	sg, err := r.osClient.GetSecurityGroup(instance.Status.ID)
 	if err != nil {
 		return err
 	}
@@ -127,7 +124,7 @@ func (r *ReconcileSecurityGroup) deleteExternalDependency(instance *openstackv1b
 	}
 	for _, node := range nodes.Items {
 		id := node.Status.NodeInfo.SystemUUID
-		hasSg, err := osClient.ServerHasSG(strings.ToLower(id), instance.Status.Name)
+		hasSg, err := r.osClient.ServerHasSG(strings.ToLower(id), instance.Status.Name)
 		if err != nil {
 			log.Info("Error", "Failed to ServerHasSG", err.Error())
 			return err
@@ -135,12 +132,12 @@ func (r *ReconcileSecurityGroup) deleteExternalDependency(instance *openstackv1b
 
 		if hasSg {
 			log.Info("Info", "Dettach SG from Server: ", strings.ToLower(id))
-			osClient.DettachSG(strings.ToLower(id), instance.Status.Name)
+			r.osClient.DettachSG(strings.ToLower(id), instance.Status.Name)
 		}
 	}
 
 	log.Info("Info", "Delete SG", "name", sg.Name, "id", sg.ID)
-	err = osClient.DeleteSecurityGroup(sg.ID)
+	err = r.osClient.DeleteSecurityGroup(sg.ID)
 	if err != nil {
 		return err
 	}
@@ -181,12 +178,7 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 		return r.runFinalizer(instance)
 	}
 
-	osClient, err := openstack.NewClient()
-	if err != nil {
-		return reconcile.Result{}, err
-	}
-
-	tenant, err := osClient.GetTenantByName(os.Getenv("OS_TENANT_NAME"))
+	tenant, err := r.osClient.GetTenantByName(os.Getenv("OS_TENANT_NAME"))
 	if err != nil {
 		return reconcile.Result{}, err
 	}
@@ -194,7 +186,7 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 	var sg *groups.SecGroup
 
 	// Check if the SecurityGroup already exists
-	sg, err = osClient.GetSecurityGroup(instance.Status.ID)
+	sg, err = r.osClient.GetSecurityGroup(instance.Status.ID)
 	if err != nil {
 		switch err.(type) {
 		case gophercloud.ErrDefault404:
@@ -203,7 +195,7 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 			log.Info("Creating SG", "name", instance.Spec.Name)
 			name := fmt.Sprintf("%s-%s", instance.Spec.Name, utilrand.String(randomLength))
 
-			sg, err = osClient.CreateSecurityGroup(name, "", tenant.ID)
+			sg, err = r.osClient.CreateSecurityGroup(name, "", tenant.ID)
 			if err != nil {
 				log.Info("Error", "msg", err.Error())
 			}
@@ -226,7 +218,7 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 		}
 
 		if !exists {
-			r.addRule(osClient, sg.ID, rule)
+			r.addRule(sg.ID, rule)
 			if err != nil {
 				log.Info("Error", "addRule", err.Error())
 				return reconcile.Result{}, err
@@ -244,7 +236,7 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 		}
 		if delete {
 			log.Info("Deleting SG Rule", "cidr", existRule.RemoteIPPrefix, "port", fmt.Sprintf("%d-%d", existRule.PortRangeMin, existRule.PortRangeMax))
-			err = osClient.DeleteSecurityGroupRule(existRule.ID)
+			err = r.osClient.DeleteSecurityGroupRule(existRule.ID)
 			if err != nil {
 				return reconcile.Result{}, err
 			}
@@ -272,14 +264,14 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 	for _, id := range instance.Status.Nodes {
 		if !containsString(existsNodeIDs, id) {
 			log.Info("Info", "Dettach SG from Server", strings.ToLower(id))
-			osClient.DettachSG(strings.ToLower(id), sg.Name)
+			r.osClient.DettachSG(strings.ToLower(id), sg.Name)
 			instance.Status.Nodes = removeString(instance.Status.Nodes, id)
 		}
 	}
 
 	for _, node := range nodes.Items {
 		id := node.Status.NodeInfo.SystemUUID
-		hasSg, err := osClient.ServerHasSG(strings.ToLower(id), sg.Name)
+		hasSg, err := r.osClient.ServerHasSG(strings.ToLower(id), sg.Name)
 		if err != nil {
 			log.Info("Error", "Failed to ServerHasSG", err.Error())
 			return reconcile.Result{}, err
@@ -287,7 +279,7 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 
 		if !hasSg {
 			log.Info("Info", "Attach SG to Server", strings.ToLower(id))
-			if err = osClient.AttachSG(strings.ToLower(id), sg.Name); err != nil {
+			if err = r.osClient.AttachSG(strings.ToLower(id), sg.Name); err != nil {
 				log.Info("Debug", "failed to attach sg", err.Error())
 				return reconcile.Result{}, err
 			}
@@ -304,7 +296,7 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 	return reconcile.Result{RequeueAfter: 60 * time.Second}, nil
 }
 
-func (r *ReconcileSecurityGroup) addRule(osClient *openstack.OpenStackClient, id string, rule openstackv1beta1.SecurityGroupRule) error {
+func (r *ReconcileSecurityGroup) addRule(id string, rule openstackv1beta1.SecurityGroupRule) error {
 	createOpts := rules.CreateOpts{
 		Direction:      rules.RuleDirection(rule.Direction),
 		SecGroupID:     id,
@@ -315,7 +307,7 @@ func (r *ReconcileSecurityGroup) addRule(osClient *openstack.OpenStackClient, id
 		Protocol:       rules.RuleProtocol(rule.Protocol),
 	}
 	log.Info("Creating SG Rule", "cidr", rule.RemoteIpPrefix, "port", fmt.Sprintf("%d-%d", rule.PortRangeMin, rule.PortRangeMax))
-	err := osClient.AddSecurityGroupRule(createOpts)
+	err := r.osClient.AddSecurityGroupRule(createOpts)
 	if err != nil {
 		return err
 	}

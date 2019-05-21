@@ -38,13 +38,12 @@ type OpenStackClientInterface interface {
 	DettachSG(id string, sgName string) error
 }
 
-
 type OpenStackClient struct {
 	providerClient *gophercloud.ProviderClient
 	regionName     string
 }
 
-func NewClient() (*OpenStackClient, error) {
+func NewClient() (OpenStackClientInterface, error) {
 	client := OpenStackClient{}
 	client.regionName = os.Getenv("OS_REGION_NAME")
 	cert := os.Getenv("OS_CERT")
