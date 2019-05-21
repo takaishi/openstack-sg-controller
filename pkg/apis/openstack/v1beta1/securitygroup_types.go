@@ -67,6 +67,7 @@ type SecurityGroupStatus struct {
 
 // SecurityGroup is the Schema for the securitygroups API
 // +k8s:openapi-gen=true
+// +kubebuilder:subresource:status
 type SecurityGroup struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

@@ -195,3 +195,17 @@ func (mr *MockOpenStackClientInterfaceMockRecorder) DettachSG(id, sgName interfa
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DettachSG", reflect.TypeOf((*MockOpenStackClientInterface)(nil).DettachSG), id, sgName)
 }
+
+// RandomString mocks base method
+func (m *MockOpenStackClientInterface) RandomString() string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RandomString")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// RandomString indicates an expected call of RandomString
+func (mr *MockOpenStackClientInterfaceMockRecorder) RandomString() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RandomString", reflect.TypeOf((*MockOpenStackClientInterface)(nil).RandomString))
+}

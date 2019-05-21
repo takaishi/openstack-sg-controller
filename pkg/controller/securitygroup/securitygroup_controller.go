@@ -28,10 +28,8 @@ import (
 
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/groups"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/rules"
-	"github.com/takaishi/openstack-sg-controller/pkg/openstack"
-	utilrand "k8s.io/apimachinery/pkg/util/rand"
-
 	openstackv1beta1 "github.com/takaishi/openstack-sg-controller/pkg/apis/openstack/v1beta1"
+	"github.com/takaishi/openstack-sg-controller/pkg/openstack"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	errors_ "k8s.io/apimachinery/pkg/api/errors"
@@ -43,10 +41,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 	"sigs.k8s.io/controller-runtime/pkg/source"
-)
-
-const (
-	randomLength = 5
 )
 
 var log = logf.Log.WithName("controller")
@@ -192,7 +186,7 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 			rand.Seed(time.Now().Unix())
 
 			log.Info("Creating SG", "name", instance.Spec.Name)
-			name := fmt.Sprintf("%s-%s", instance.Spec.Name, utilrand.String(randomLength))
+			name := fmt.Sprintf("%s-%s", instance.Spec.Name, r.osClient.RandomString())
 
 			sg, err = r.osClient.CreateSecurityGroup(name, "", tenant.ID)
 			if err != nil {
