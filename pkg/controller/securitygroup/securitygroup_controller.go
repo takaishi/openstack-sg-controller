@@ -20,15 +20,13 @@ import (
 	"context"
 	"fmt"
 	"github.com/gophercloud/gophercloud"
+	"k8s.io/api/core/v1"
 	"math/rand"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/groups"
-	"k8s.io/client-go/kubernetes"
-	"sigs.k8s.io/controller-runtime/pkg/client/config"
-
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/rules"
 	"github.com/takaishi/openstack-sg-controller/pkg/openstack"
 	utilrand "k8s.io/apimachinery/pkg/util/rand"
@@ -109,24 +107,20 @@ func (r *ReconcileSecurityGroup) deleteExternalDependency(instance *openstackv1b
 		return err
 	}
 
-	clientset, err := kubeClient()
-	if err != nil {
-		log.Info("Error", "Failed to create kubeClient", err.Error())
-		return err
-	}
-
 	labelSelector := []string{}
 	if hasKey(instance.Spec.NodeSelector, "role") {
 		labelSelector = append(labelSelector, fmt.Sprintf("node-role.kubernetes.io/%s", instance.Spec.NodeSelector["role"]))
 	}
-	listOpts := metav1.ListOptions{
-		LabelSelector: strings.Join(labelSelector, ","),
+	var nodes v1.NodeList
+	listOpts := client.ListOptions{
+		Raw: &metav1.ListOptions{LabelSelector: strings.Join(labelSelector, ",")},
 	}
-	nodes, err := clientset.CoreV1().Nodes().List(listOpts)
+	err = r.List(context.Background(), &listOpts, &nodes)
 	if err != nil {
-		log.Info("Error", "Failed to NodeLIst", err.Error())
+		log.Info("Error", "Failed to NodeList", err.Error())
 		return err
 	}
+
 	for _, node := range nodes.Items {
 		id := node.Status.NodeInfo.SystemUUID
 		hasSg, err := r.osClient.ServerHasSG(strings.ToLower(id), instance.Status.Name)
@@ -249,13 +243,11 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 		}
 	}
 
-	clientset, err := kubeClient()
-	if err != nil {
-		log.Info("Error", "Failed to create kubeClient", err.Error())
-		return reconcile.Result{}, err
+	var nodes v1.NodeList
+	listOpts := client.ListOptions{
+		Raw: &metav1.ListOptions{LabelSelector: labelSelector(instance)},
 	}
-
-	nodes, err := clientset.CoreV1().Nodes().List(metav1.ListOptions{LabelSelector: labelSelector(instance)})
+	err = r.List(context.Background(), &listOpts, &nodes)
 	if err != nil {
 		log.Info("Error", "Failed to NodeList", err.Error())
 		return reconcile.Result{}, err
@@ -342,22 +334,6 @@ func (r *ReconcileSecurityGroup) runFinalizer(sg *openstackv1beta1.SecurityGroup
 	}
 
 	return reconcile.Result{}, nil
-}
-
-func kubeClient() (*kubernetes.Clientset, error) {
-	cfg, err := config.GetConfig()
-	if err != nil {
-		log.Info("Error", "Failed to get config", err.Error())
-		return nil, err
-	}
-
-	clientset, err := kubernetes.NewForConfig(cfg)
-	if err != nil {
-		log.Info("Error", "Failed to NewForConfig", err.Error())
-		return nil, err
-	}
-
-	return clientset, nil
 }
 
 func labelSelector(instance *openstackv1beta1.SecurityGroup) string {
