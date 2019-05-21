@@ -17,8 +17,10 @@ limitations under the License.
 package securitygroup
 
 import (
+	"github.com/golang/mock/gomock"
+	"github.com/takaishi/openstack-sg-controller/mock"
+	"github.com/takaishi/openstack-sg-controller/pkg/openstack"
 	"testing"
-	"time"
 
 	"github.com/onsi/gomega"
 	openstackv1beta1 "github.com/takaishi/openstack-sg-controller/pkg/apis/openstack/v1beta1"
@@ -37,7 +39,11 @@ var c client.Client
 var expectedRequest = reconcile.Request{NamespacedName: types.NamespacedName{Name: "foo", Namespace: "default"}}
 var depKey = types.NamespacedName{Name: "foo-deployment", Namespace: "default"}
 
-const timeout = time.Second * 5
+func newOpenStackClientMock(controller *gomock.Controller) openstack.OpenStackClientInterface {
+	osClient := mock_openstack.NewMockOpenStackClientInterface(controller)
+
+	return osClient
+}
 
 func TestReconcile(t *testing.T) {
 	g := gomega.NewGomegaWithT(t)
@@ -49,7 +55,12 @@ func TestReconcile(t *testing.T) {
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 	c = mgr.GetClient()
 
-	recFn, requests := SetupTestReconcile(newReconciler(mgr))
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+
+	osClient := newOpenStackClientMock(mockCtrl)
+
+	recFn, requests := SetupTestReconcile(newReconciler(mgr, osClient))
 	g.Expect(add(mgr, recFn)).NotTo(gomega.HaveOccurred())
 
 	stopMgr, mgrStopped := StartTestManager(mgr, g)

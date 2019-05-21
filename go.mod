@@ -14,6 +14,7 @@ require (
 	github.com/gobuffalo/envy v1.6.15
 	github.com/gogo/protobuf v1.2.1
 	github.com/golang/groupcache v0.0.0-20190129154638-5b532d6fd5ef
+	github.com/golang/mock v1.3.1
 	github.com/golang/protobuf v1.3.0
 	github.com/google/btree v0.0.0-20180813153112-4030bb1f1f0c
 	github.com/google/gofuzz v0.0.0-20170612174753-24818f796faf
@@ -49,12 +50,12 @@ require (
 	go.uber.org/multierr v1.1.0
 	go.uber.org/zap v1.9.1
 	golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2
-	golang.org/x/net v0.0.0-20190310014029-b774fd8d5c0f
+	golang.org/x/net v0.0.0-20190311183353-d8887717615a
 	golang.org/x/oauth2 v0.0.0-20190226205417-e64efc72b421
 	golang.org/x/sys v0.0.0-20190309122539-980fc434d28e
 	golang.org/x/text v0.3.1-0.20180807135948-17ff2d5776d2
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
-	golang.org/x/tools v0.0.0-20190308174544-00c44ba9c14f
+	golang.org/x/tools v0.0.0-20190425150028-36563e24a262
 	google.golang.org/appengine v1.4.0
 	gopkg.in/fsnotify.v1 v1.4.7
 	gopkg.in/inf.v0 v0.9.1

@@ -62,12 +62,17 @@ var finalizerName = "finalizer.securitygroups.openstack.repl.info"
 // Add creates a new SecurityGroup Controller and adds it to the Manager with default RBAC. The Manager will set fields on the Controller
 // and Start it when the Manager is Started.
 func Add(mgr manager.Manager) error {
-	return add(mgr, newReconciler(mgr))
+	osClient, err := openstack.NewClient()
+	if err != nil {
+		return err
+	}
+
+	return add(mgr, newReconciler(mgr, osClient))
 }
 
 // newReconciler returns a new reconcile.Reconciler
-func newReconciler(mgr manager.Manager) reconcile.Reconciler {
-	return &ReconcileSecurityGroup{Client: mgr.GetClient(), scheme: mgr.GetScheme()}
+func newReconciler(mgr manager.Manager, osClient openstack.OpenStackClientInterface) reconcile.Reconciler {
+	return &ReconcileSecurityGroup{Client: mgr.GetClient(), scheme: mgr.GetScheme(), osClient: osClient}
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
