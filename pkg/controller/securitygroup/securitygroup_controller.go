@@ -278,7 +278,7 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 		}
 	}
 
-	if err := r.Update(context.Background(), instance); err != nil {
+	if err := r.Status().Update(context.Background(), instance); err != nil {
 		log.Info("Debug", "failed to update sg", err.Error())
 		return reconcile.Result{}, err
 	}
