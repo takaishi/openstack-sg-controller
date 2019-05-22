@@ -148,7 +148,6 @@ func (r *ReconcileSecurityGroup) deleteExternalDependency(instance *openstackv1b
 // +kubebuilder:rbac:groups=openstack.repl.info,resources=securitygroups,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=openstack.repl.info,resources=securitygroups/status,verbs=get;update;patch
 func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-	fmt.Println("Reconcile")
 	// Fetch the SecurityGroup instance
 	instance := &openstackv1beta1.SecurityGroup{}
 	err := r.Get(context.TODO(), request.NamespacedName, instance)
