@@ -42,7 +42,7 @@ import (
 var c client.Client
 
 var expectedRequest = reconcile.Request{NamespacedName: types.NamespacedName{Name: "foo", Namespace: "default"}}
-var depKey = types.NamespacedName{Name: "foo-deployment", Namespace: "default"}
+var depKey = types.NamespacedName{Name: "foo", Namespace: "default"}
 
 const timeout = time.Second * 5
 
@@ -52,7 +52,7 @@ func newOpenStackClientMock(controller *gomock.Controller) openstack.OpenStackCl
 	osClient := mock_openstack.NewMockOpenStackClientInterface(controller)
 	osClient.EXPECT().GetTenantByName("test-tenant").Return(tenant, nil).Times(2)
 	osClient.EXPECT().GetSecurityGroup("").Return(&sg, gophercloud.ErrDefault404{})
-	osClient.EXPECT().GetSecurityGroup("test-sg-id").Return(&sg, nil)
+	osClient.EXPECT().GetSecurityGroup("test-sg-id").Return(&sg, nil).Times(2)
 	osClient.EXPECT().CreateSecurityGroup("test-sg-abcde", "", "test-tenant-id").Return(&sg, nil)
 	createOpts := rules.CreateOpts{
 		Direction:      "ingress",
@@ -64,8 +64,7 @@ func newOpenStackClientMock(controller *gomock.Controller) openstack.OpenStackCl
 		RemoteIPPrefix: "127.0.0.1",
 	}
 	osClient.EXPECT().AddSecurityGroupRule(createOpts).Return(nil).AnyTimes()
-	//osClient.EXPECT().DeleteSecurityGroupRule("rule-id").Return(nil)
-	//osClient.EXPECT().AttachSG("server-id", "sg-name").Return(nil)
+	osClient.EXPECT().DeleteSecurityGroup("test-sg-id").Return(nil)
 	osClient.EXPECT().RandomString().Return("abcde")
 
 	return osClient
@@ -137,18 +136,14 @@ func TestReconcile(t *testing.T) {
 	defer c.Delete(context.TODO(), instance)
 	g.Eventually(requests, timeout).Should(gomega.Receive(gomega.Equal(expectedRequest)))
 
-	//deploy := &appsv1.Deployment{}
-	//g.Eventually(func() error { return c.Get(context.TODO(), depKey, deploy) }, timeout).
-	//	Should(gomega.Succeed())
-	//
-	//Delete the Deployment and expect Reconcile to be called for Deployment deletion
-	//g.Expect(c.Delete(context.TODO(), deploy)).NotTo(gomega.HaveOccurred())
-	//g.Eventually(requests, timeout).Should(gomega.Receive(gomega.Equal(expectedRequest)))
-	//g.Eventually(func() error { return c.Get(context.TODO(), depKey, deploy) }, timeout).
-	//	Should(gomega.Succeed())
+	//Delete the SecurityGroup and expect Reconcile to be called for SecurityGroup deletion
+	g.Expect(c.Delete(context.TODO(), instance)).NotTo(gomega.HaveOccurred())
+	g.Eventually(requests, timeout).Should(gomega.Receive(gomega.Equal(expectedRequest)))
+	g.Eventually(func() error { return c.Get(context.TODO(), depKey, instance) }, timeout).
+		Should(gomega.Succeed())
 
-	//Manually delete Deployment since GC isn't enabled in the test control plane
-	//g.Eventually(func() error { return c.Delete(context.TODO(), deploy) }, timeout).
-	//	Should(gomega.MatchError("deployments.apps \"foo-deployment\" not found"))
+	//Manually delete SecurityGroup since GC isn't enabled in the test control plane
+	g.Eventually(func() error { return c.Delete(context.TODO(), instance) }, timeout).
+		Should(gomega.MatchError("securitygroups.openstack.repl.info \"foo\" not found"))
 
 }
