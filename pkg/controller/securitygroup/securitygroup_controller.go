@@ -143,8 +143,8 @@ func (r *ReconcileSecurityGroup) deleteExternalDependency(instance *openstackv1b
 // TODO(user): Modify this Reconcile function to implement your Controller logic.  The scaffolding writes
 // a Deployment as an example
 // Automatically generate RBAC rules to allow the Controller to read and write Deployments
-// +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=apps,resources=deployments/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=,resources=nodes,verbs=get;list;watch
+// +kubebuilder:rbac:groups=,resources=nodes/status,verbs=get
 // +kubebuilder:rbac:groups=openstack.repl.info,resources=securitygroups,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=openstack.repl.info,resources=securitygroups/status,verbs=get;update;patch
 func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile.Result, error) {
