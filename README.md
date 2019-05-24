@@ -7,7 +7,6 @@
 ```
 
 $ kubectl create namespace openstack-sg-controller-system
-$ kubectl apply -f ./config/crds/
 $ kubectl -n openstack-sg-controller-system create secret generic openstack-sg-controller \
   --from-literal=os_auth_url='' \
   --from-literal=os_username='' \
@@ -19,7 +18,7 @@ $ kubectl -n openstack-sg-controller-system create secret generic openstack-sg-c
   --from-literal=os_identity_api_version='' \
   --from-literal=os_project_domain_name='' \
   --from-literal=os_user_domain_name=''
-$ kubectl apply -f ./config/default/
+$ make deploy
 ```
 
 ## Usage
