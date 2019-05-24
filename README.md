@@ -22,14 +22,12 @@ $ kubectl -n openstack-sg-controller-system create secret generic openstack-sg-c
 $ kubectl apply -f ./config/default/
 ```
 
-
-
-## Development
+## Usage
 
 Running on localhost:
 
 ```
-$ go run ./cmd/manager/main.go
+$ make run
 ```
 
 Build image :
@@ -42,6 +40,12 @@ Push image:
 
 ```
 $ make docker-push
+```
+
+Deploy to Kubernetes:
+
+```
+$ make deploy
 ```
 
 
