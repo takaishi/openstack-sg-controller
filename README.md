@@ -8,16 +8,16 @@
 
 $ kubectl create namespace openstack-sg-controller-system
 $ kubectl -n openstack-sg-controller-system create secret generic openstack-sg-controller \
-  --from-literal=os_auth_url='' \
-  --from-literal=os_username='' \
-  --from-literal=os_password='' \
-  --from-literal=os_project_name='' \
-  --from-literal=os_tenant_name='' \
-  --from-literal=os_region_name='' \
-  --from-literal=os_domain_name='' \
-  --from-literal=os_identity_api_version='' \
-  --from-literal=os_project_domain_name='' \
-  --from-literal=os_user_domain_name=''
+  --from-literal=os_auth_url='https://your-endpoint/auth/v3' \
+  --from-literal=os_username='yourname' \
+  --from-literal=os_password='password' \
+  --from-literal=os_project_name='tenant-name' \
+  --from-literal=os_tenant_name='tenant-name' \
+  --from-literal=os_region_name='RegionOne' \
+  --from-literal=os_identity_api_version='3' \
+  --from-literal=os_domain_name='Default' \
+  --from-literal=os_project_domain_name='Default' \
+  --from-literal=os_user_domain_name='Default'
 $ make deploy
 ```
 
