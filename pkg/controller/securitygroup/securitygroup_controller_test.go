@@ -17,16 +17,17 @@ limitations under the License.
 package securitygroup
 
 import (
+	"os"
+	"testing"
+	"time"
+
 	"github.com/golang/mock/gomock"
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/identity/v3/projects"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/groups"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/rules"
-	"github.com/takaishi/openstack-sg-controller/mock"
+	mock_openstack "github.com/takaishi/openstack-sg-controller/mock"
 	"github.com/takaishi/openstack-sg-controller/pkg/openstack"
-	"os"
-	"testing"
-	"time"
 
 	"github.com/onsi/gomega"
 	openstackv1beta1 "github.com/takaishi/openstack-sg-controller/pkg/apis/openstack/v1beta1"
@@ -53,7 +54,7 @@ func newOpenStackClientMock(controller *gomock.Controller) openstack.OpenStackCl
 	osClient.EXPECT().GetTenantByName("test-tenant").Return(tenant, nil).Times(2)
 	osClient.EXPECT().GetSecurityGroup("").Return(&sg, gophercloud.ErrDefault404{})
 	osClient.EXPECT().GetSecurityGroup("test-sg-id").Return(&sg, nil).Times(2)
-	osClient.EXPECT().CreateSecurityGroup("test-sg-abcde", "", "test-tenant-id").Return(&sg, nil)
+	osClient.EXPECT().CreateSecurityGroup("test-sg", "", "test-tenant-id").Return(&sg, nil)
 	createOpts := rules.CreateOpts{
 		Direction:      "ingress",
 		EtherType:      "IPv4",
@@ -65,7 +66,6 @@ func newOpenStackClientMock(controller *gomock.Controller) openstack.OpenStackCl
 	}
 	osClient.EXPECT().AddSecurityGroupRule(createOpts).Return(nil).AnyTimes()
 	osClient.EXPECT().DeleteSecurityGroup("test-sg-id").Return(nil)
-	osClient.EXPECT().RandomString().Return("abcde")
 
 	return osClient
 }

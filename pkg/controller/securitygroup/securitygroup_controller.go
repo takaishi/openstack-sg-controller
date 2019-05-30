@@ -19,18 +19,19 @@ package securitygroup
 import (
 	"context"
 	"fmt"
-	"github.com/gophercloud/gophercloud"
-	"k8s.io/api/core/v1"
-	"math/rand"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/gophercloud/gophercloud"
+	v1 "k8s.io/api/core/v1"
 
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/groups"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/rules"
 	openstackv1beta1 "github.com/takaishi/openstack-sg-controller/pkg/apis/openstack/v1beta1"
 	"github.com/takaishi/openstack-sg-controller/pkg/openstack"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 
 	errors_ "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -98,6 +99,11 @@ func (r *ReconcileSecurityGroup) deleteExternalDependency(instance *openstackv1b
 
 	sg, err := r.osClient.GetSecurityGroup(instance.Status.ID)
 	if err != nil {
+		_, notfound := err.(gophercloud.ErrDefault404)
+		if notfound {
+			log.Info("Info", "already delete security group", instance.Status.Name)
+			return nil
+		}
 		return err
 	}
 
@@ -106,8 +112,13 @@ func (r *ReconcileSecurityGroup) deleteExternalDependency(instance *openstackv1b
 		labelSelector = append(labelSelector, fmt.Sprintf("node-role.kubernetes.io/%s", instance.Spec.NodeSelector["role"]))
 	}
 	var nodes v1.NodeList
+	ls, err := convertLabelSelectorToLabelsSelector(strings.Join(labelSelector, ","))
+	if err != nil {
+		return err
+	}
+
 	listOpts := client.ListOptions{
-		Raw: &metav1.ListOptions{LabelSelector: strings.Join(labelSelector, ",")},
+		LabelSelector: ls,
 	}
 	err = r.List(context.Background(), &listOpts, &nodes)
 	if err != nil {
@@ -129,7 +140,7 @@ func (r *ReconcileSecurityGroup) deleteExternalDependency(instance *openstackv1b
 		}
 	}
 
-	log.Info("Info", "Delete SG", "name", sg.Name, "id", sg.ID)
+	log.Info("Info", "Delete SG name", sg.Name, "id", sg.ID)
 	err = r.osClient.DeleteSecurityGroup(sg.ID)
 	if err != nil {
 		return err
@@ -154,7 +165,6 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 	if err != nil {
 		if errors_.IsNotFound(err) {
 			log.Info("Debug: instance not found", "SecurityGroup", instance.Name)
-
 			return reconcile.Result{}, nil
 		}
 		// Error reading the object - requeue the request.
@@ -183,10 +193,8 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 	if err != nil {
 		switch err.(type) {
 		case gophercloud.ErrDefault404:
-			rand.Seed(time.Now().Unix())
-
 			log.Info("Creating SG", "name", instance.Spec.Name)
-			name := fmt.Sprintf("%s-%s", instance.Spec.Name, r.osClient.RandomString())
+			name := instance.Spec.Name
 
 			sg, err = r.osClient.CreateSecurityGroup(name, "", tenant.ID)
 			if err != nil {
@@ -205,7 +213,9 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 	for _, rule := range instance.Spec.Rules {
 		exists := false
 		for _, existsRule := range sg.Rules {
-			if rule.RemoteIpPrefix == existsRule.RemoteIPPrefix && rule.PortRangeMax == existsRule.PortRangeMax && rule.PortRangeMin == existsRule.PortRangeMin {
+			if rule.RemoteIpPrefix == existsRule.RemoteIPPrefix &&
+				rule.PortRangeMax == existsRule.PortRangeMax &&
+				rule.PortRangeMin == existsRule.PortRangeMin {
 				exists = true
 			}
 		}
@@ -219,28 +229,16 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 		}
 	}
 
-	// SGのルールがResource側にない場合、ルールを削除
-	for _, existRule := range sg.Rules {
-		delete := true
-		for _, rule := range instance.Spec.Rules {
-			if existRule.RemoteIPPrefix == rule.RemoteIpPrefix && existRule.PortRangeMax == rule.PortRangeMax && existRule.PortRangeMin == rule.PortRangeMin {
-				delete = false
-			}
-		}
-		if delete {
-			log.Info("Deleting SG Rule", "cidr", existRule.RemoteIPPrefix, "port", fmt.Sprintf("%d-%d", existRule.PortRangeMin, existRule.PortRangeMax))
-			err = r.osClient.DeleteSecurityGroupRule(existRule.ID)
-			if err != nil {
-				return reconcile.Result{}, err
-			}
-			log.Info("Success to delete SG Rule", "cidr", existRule.RemoteIPPrefix, "port", fmt.Sprintf("%d-%d", existRule.PortRangeMin, existRule.PortRangeMax))
-		}
+	var nodes v1.NodeList
+	ls, err := convertLabelSelectorToLabelsSelector(labelSelector(instance))
+	if err != nil {
+		return reconcile.Result{}, err
 	}
 
-	var nodes v1.NodeList
 	listOpts := client.ListOptions{
-		Raw: &metav1.ListOptions{LabelSelector: labelSelector(instance)},
+		LabelSelector: ls,
 	}
+
 	err = r.List(context.Background(), &listOpts, &nodes)
 	if err != nil {
 		log.Info("Error", "Failed to NodeList", err.Error())
@@ -255,8 +253,33 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 	for _, id := range instance.Status.Nodes {
 		if !containsString(existsNodeIDs, id) {
 			log.Info("Info", "Dettach SG from Server", strings.ToLower(id))
-			r.osClient.DettachSG(strings.ToLower(id), sg.Name)
+			err := r.osClient.DettachSG(strings.ToLower(id), sg.Name)
+			if err != nil {
+				log.Info("Error", "Failed to Detach SG", err.Error())
+				return reconcile.Result{}, err
+			}
+
 			instance.Status.Nodes = removeString(instance.Status.Nodes, id)
+		}
+	}
+
+	// SGのルールがResource側にない場合、ルールを削除
+	for _, existRule := range sg.Rules {
+		delete := true
+		for _, rule := range instance.Spec.Rules {
+			if existRule.RemoteIPPrefix == rule.RemoteIpPrefix &&
+				existRule.PortRangeMax == rule.PortRangeMax &&
+				existRule.PortRangeMin == rule.PortRangeMin {
+				delete = false
+			}
+		}
+		if delete {
+			log.Info("Deleting SG Rule", "cidr", existRule.RemoteIPPrefix, "port", fmt.Sprintf("%d-%d", existRule.PortRangeMin, existRule.PortRangeMax))
+			err = r.osClient.DeleteSecurityGroupRule(existRule.ID)
+			if err != nil {
+				return reconcile.Result{}, err
+			}
+			log.Info("Success to delete SG Rule", "cidr", existRule.RemoteIPPrefix, "port", fmt.Sprintf("%d-%d", existRule.PortRangeMin, existRule.PortRangeMax))
 		}
 	}
 
@@ -287,6 +310,13 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 	return reconcile.Result{RequeueAfter: 60 * time.Second}, nil
 }
 
+func convertLabelSelectorToLabelsSelector(selector string) (labels.Selector, error) {
+	s, err := metav1.ParseToLabelSelector(selector)
+	if err != nil {
+		return nil, err
+	}
+	return metav1.LabelSelectorAsSelector(s)
+}
 func (r *ReconcileSecurityGroup) addRule(id string, rule openstackv1beta1.SecurityGroupRule) error {
 	createOpts := rules.CreateOpts{
 		Direction:      rules.RuleDirection(rule.Direction),
