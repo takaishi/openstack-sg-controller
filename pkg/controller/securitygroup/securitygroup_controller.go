@@ -231,24 +231,6 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 		}
 	}
 
-	// SGのルールがResource側にない場合、ルールを削除
-	for _, existRule := range sg.Rules {
-		delete := true
-		for _, rule := range instance.Spec.Rules {
-			if existRule.RemoteIPPrefix == rule.RemoteIpPrefix && existRule.PortRangeMax == rule.PortRangeMax && existRule.PortRangeMin == rule.PortRangeMin {
-				delete = false
-			}
-		}
-		if delete {
-			log.Info("Deleting SG Rule", "cidr", existRule.RemoteIPPrefix, "port", fmt.Sprintf("%d-%d", existRule.PortRangeMin, existRule.PortRangeMax))
-			err = r.osClient.DeleteSecurityGroupRule(existRule.ID)
-			if err != nil {
-				return reconcile.Result{}, err
-			}
-			log.Info("Success to delete SG Rule", "cidr", existRule.RemoteIPPrefix, "port", fmt.Sprintf("%d-%d", existRule.PortRangeMin, existRule.PortRangeMax))
-		}
-	}
-
 	var nodes v1.NodeList
 	ls, err := convertLabelSelectorToLabelsSelector(labelSelector(instance))
 	if err != nil {
@@ -275,6 +257,26 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 			log.Info("Info", "Dettach SG from Server", strings.ToLower(id))
 			r.osClient.DettachSG(strings.ToLower(id), sg.Name)
 			instance.Status.Nodes = removeString(instance.Status.Nodes, id)
+		}
+	}
+
+	// SGのルールがResource側にない場合、ルールを削除
+	for _, existRule := range sg.Rules {
+		delete := true
+		for _, rule := range instance.Spec.Rules {
+			if existRule.RemoteIPPrefix == rule.RemoteIpPrefix &&
+				existRule.PortRangeMax == rule.PortRangeMax &&
+				existRule.PortRangeMin == rule.PortRangeMin {
+				delete = false
+			}
+		}
+		if delete {
+			log.Info("Deleting SG Rule", "cidr", existRule.RemoteIPPrefix, "port", fmt.Sprintf("%d-%d", existRule.PortRangeMin, existRule.PortRangeMax))
+			err = r.osClient.DeleteSecurityGroupRule(existRule.ID)
+			if err != nil {
+				return reconcile.Result{}, err
+			}
+			log.Info("Success to delete SG Rule", "cidr", existRule.RemoteIPPrefix, "port", fmt.Sprintf("%d-%d", existRule.PortRangeMin, existRule.PortRangeMax))
 		}
 	}
 
