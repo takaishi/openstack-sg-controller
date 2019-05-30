@@ -195,10 +195,8 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 	if err != nil {
 		switch err.(type) {
 		case gophercloud.ErrDefault404:
-			rand.Seed(time.Now().Unix())
-
 			log.Info("Creating SG", "name", instance.Spec.Name)
-			name := fmt.Sprintf("%s-%s", instance.Spec.Name, r.osClient.RandomString())
+			name := fmt.Sprintf("%s-%s", instance.Name, instance.Spec.Name)
 
 			sg, err = r.osClient.CreateSecurityGroup(name, "", tenant.ID)
 			if err != nil {
