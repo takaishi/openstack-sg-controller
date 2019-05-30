@@ -215,7 +215,9 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 	for _, rule := range instance.Spec.Rules {
 		exists := false
 		for _, existsRule := range sg.Rules {
-			if rule.RemoteIpPrefix == existsRule.RemoteIPPrefix && rule.PortRangeMax == existsRule.PortRangeMax && rule.PortRangeMin == existsRule.PortRangeMin {
+			if rule.RemoteIpPrefix == existsRule.RemoteIPPrefix &&
+				rule.PortRangeMax == existsRule.PortRangeMax &&
+				rule.PortRangeMin == existsRule.PortRangeMin {
 				exists = true
 			}
 		}
