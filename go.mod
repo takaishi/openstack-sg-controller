@@ -1,7 +1,5 @@
 module github.com/takaishi/openstack-sg-controller
 
-go 1.12
-
 require (
 	cloud.google.com/go v0.36.0
 	github.com/appscode/jsonpatch v0.0.0-20190108182946-7c0e3b262f30
@@ -14,13 +12,13 @@ require (
 	github.com/gobuffalo/envy v1.6.15
 	github.com/gogo/protobuf v1.2.1
 	github.com/golang/groupcache v0.0.0-20190129154638-5b532d6fd5ef
-	github.com/golang/mock v1.3.1
+	github.com/golang/mock v1.2.0
 	github.com/golang/protobuf v1.3.0
-	github.com/google/btree v0.0.0-20180813153112-4030bb1f1f0c
+	github.com/google/btree v1.0.0
 	github.com/google/gofuzz v0.0.0-20170612174753-24818f796faf
 	github.com/google/uuid v1.1.1
 	github.com/googleapis/gnostic v0.2.0
-	github.com/gophercloud/gophercloud v0.0.0-20190307220656-fe1ba5ce12dd
+	github.com/gophercloud/gophercloud v0.1.0
 	github.com/gregjones/httpcache v0.0.0-20190212212710-3befbb6ad0cc
 	github.com/hashicorp/golang-lru v0.5.1
 	github.com/hpcloud/tail v1.0.0
@@ -28,9 +26,7 @@ require (
 	github.com/inconshreveable/mousetrap v1.0.0
 	github.com/joho/godotenv v1.3.0
 	github.com/json-iterator/go v1.1.5
-	github.com/k0kubun/pp v3.0.1+incompatible
 	github.com/markbates/inflect v1.0.4
-	github.com/mattn/go-colorable v0.1.2 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd
 	github.com/modern-go/reflect2 v0.0.0-20180701023420-4b7aa43c6742
@@ -52,12 +48,12 @@ require (
 	go.uber.org/multierr v1.1.0
 	go.uber.org/zap v1.9.1
 	golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2
-	golang.org/x/net v0.0.0-20190311183353-d8887717615a
+	golang.org/x/net v0.0.0-20190310014029-b774fd8d5c0f
 	golang.org/x/oauth2 v0.0.0-20190226205417-e64efc72b421
 	golang.org/x/sys v0.0.0-20190309122539-980fc434d28e
 	golang.org/x/text v0.3.1-0.20180807135948-17ff2d5776d2
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
-	golang.org/x/tools v0.0.0-20190425150028-36563e24a262
+	golang.org/x/tools v0.0.0-20190308174544-00c44ba9c14f
 	google.golang.org/appengine v1.4.0
 	gopkg.in/fsnotify.v1 v1.4.7
 	gopkg.in/inf.v0 v0.9.1
