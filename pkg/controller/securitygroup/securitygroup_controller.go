@@ -141,7 +141,7 @@ func (r *ReconcileSecurityGroup) deleteExternalDependency(instance *openstackv1b
 		}
 	}
 
-	log.Info("Info", "Delete SG", "name", sg.Name, "id", sg.ID)
+	log.Info("Info", "Delete SG name", sg.Name, "id", sg.ID)
 	err = r.osClient.DeleteSecurityGroup(sg.ID)
 	if err != nil {
 		return err
