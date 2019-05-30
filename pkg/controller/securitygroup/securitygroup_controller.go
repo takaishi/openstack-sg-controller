@@ -100,6 +100,11 @@ func (r *ReconcileSecurityGroup) deleteExternalDependency(instance *openstackv1b
 
 	sg, err := r.osClient.GetSecurityGroup(instance.Status.ID)
 	if err != nil {
+		_, notfound := err.(gophercloud.ErrDefault404)
+		if notfound {
+			log.Info("Info", "already delete security group", instance.Status.Name)
+			return nil
+		}
 		return err
 	}
 
