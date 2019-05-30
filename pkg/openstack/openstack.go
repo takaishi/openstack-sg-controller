@@ -3,12 +3,12 @@ package openstack
 import (
 	"crypto/tls"
 	"fmt"
-	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/secgroups"
-	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
 	"io/ioutil"
-	utilrand "k8s.io/apimachinery/pkg/util/rand"
 	"net/http"
 	"os"
+
+	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/secgroups"
+	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
 
 	"github.com/gophercloud/gophercloud"
 	_openstack "github.com/gophercloud/gophercloud/openstack"
@@ -37,7 +37,6 @@ type OpenStackClientInterface interface {
 	ServerHasSG(id string, sgName string) (bool, error)
 	AttachSG(id string, sgName string) error
 	DettachSG(id string, sgName string) error
-	RandomString() string
 }
 
 type OpenStackClient struct {
@@ -300,9 +299,4 @@ func (client *OpenStackClient) DettachSG(id string, sgName string) error {
 	}
 
 	return nil
-}
-
-func (client *OpenStackClient) RandomString() string {
-	randomLength := 5
-	return utilrand.String(randomLength)
 }

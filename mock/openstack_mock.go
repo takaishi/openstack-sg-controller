@@ -5,12 +5,13 @@
 package mock_openstack
 
 import (
+	reflect "reflect"
+
 	gomock "github.com/golang/mock/gomock"
 	tenants "github.com/gophercloud/gophercloud/openstack/identity/v2/tenants"
 	projects "github.com/gophercloud/gophercloud/openstack/identity/v3/projects"
 	groups "github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/groups"
 	rules "github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/rules"
-	reflect "reflect"
 )
 
 // MockOpenStackClientInterface is a mock of OpenStackClientInterface interface
@@ -194,18 +195,4 @@ func (m *MockOpenStackClientInterface) DettachSG(id, sgName string) error {
 func (mr *MockOpenStackClientInterfaceMockRecorder) DettachSG(id, sgName interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DettachSG", reflect.TypeOf((*MockOpenStackClientInterface)(nil).DettachSG), id, sgName)
-}
-
-// RandomString mocks base method
-func (m *MockOpenStackClientInterface) RandomString() string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RandomString")
-	ret0, _ := ret[0].(string)
-	return ret0
-}
-
-// RandomString indicates an expected call of RandomString
-func (mr *MockOpenStackClientInterfaceMockRecorder) RandomString() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RandomString", reflect.TypeOf((*MockOpenStackClientInterface)(nil).RandomString))
 }
