@@ -19,7 +19,6 @@ package securitygroup
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"os"
 	"strings"
 	"time"
@@ -166,7 +165,6 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 	if err != nil {
 		if errors_.IsNotFound(err) {
 			log.Info("Debug: instance not found", "SecurityGroup", instance.Name)
-
 			return reconcile.Result{}, nil
 		}
 		// Error reading the object - requeue the request.
@@ -255,7 +253,12 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 	for _, id := range instance.Status.Nodes {
 		if !containsString(existsNodeIDs, id) {
 			log.Info("Info", "Dettach SG from Server", strings.ToLower(id))
-			r.osClient.DettachSG(strings.ToLower(id), sg.Name)
+			err := r.osClient.DettachSG(strings.ToLower(id), sg.Name)
+			if err != nil {
+				log.Info("Error", "Failed to Detach SG", err.Error())
+				return reconcile.Result{}, err
+			}
+
 			instance.Status.Nodes = removeString(instance.Status.Nodes, id)
 		}
 	}
