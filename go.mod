@@ -28,7 +28,9 @@ require (
 	github.com/inconshreveable/mousetrap v1.0.0
 	github.com/joho/godotenv v1.3.0
 	github.com/json-iterator/go v1.1.5
+	github.com/k0kubun/pp v3.0.1+incompatible
 	github.com/markbates/inflect v1.0.4
+	github.com/mattn/go-colorable v0.1.2 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd
 	github.com/modern-go/reflect2 v0.0.0-20180701023420-4b7aa43c6742

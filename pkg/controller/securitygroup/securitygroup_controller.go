@@ -19,18 +19,20 @@ package securitygroup
 import (
 	"context"
 	"fmt"
-	"github.com/gophercloud/gophercloud"
-	"k8s.io/api/core/v1"
 	"math/rand"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/gophercloud/gophercloud"
+	v1 "k8s.io/api/core/v1"
 
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/groups"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/rules"
 	openstackv1beta1 "github.com/takaishi/openstack-sg-controller/pkg/apis/openstack/v1beta1"
 	"github.com/takaishi/openstack-sg-controller/pkg/openstack"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 
 	errors_ "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -106,8 +108,13 @@ func (r *ReconcileSecurityGroup) deleteExternalDependency(instance *openstackv1b
 		labelSelector = append(labelSelector, fmt.Sprintf("node-role.kubernetes.io/%s", instance.Spec.NodeSelector["role"]))
 	}
 	var nodes v1.NodeList
+	ls, err := convertLabelSelectorToLabelsSelector(strings.Join(labelSelector, ","))
+	if err != nil {
+		return err
+	}
+
 	listOpts := client.ListOptions{
-		Raw: &metav1.ListOptions{LabelSelector: strings.Join(labelSelector, ",")},
+		LabelSelector: ls,
 	}
 	err = r.List(context.Background(), &listOpts, &nodes)
 	if err != nil {
@@ -238,9 +245,15 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 	}
 
 	var nodes v1.NodeList
-	listOpts := client.ListOptions{
-		Raw: &metav1.ListOptions{LabelSelector: labelSelector(instance)},
+	ls, err := convertLabelSelectorToLabelsSelector(labelSelector(instance))
+	if err != nil {
+		return reconcile.Result{}, err
 	}
+
+	listOpts := client.ListOptions{
+		LabelSelector: ls,
+	}
+
 	err = r.List(context.Background(), &listOpts, &nodes)
 	if err != nil {
 		log.Info("Error", "Failed to NodeList", err.Error())
@@ -287,6 +300,13 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 	return reconcile.Result{RequeueAfter: 60 * time.Second}, nil
 }
 
+func convertLabelSelectorToLabelsSelector(selector string) (labels.Selector, error) {
+	s, err := metav1.ParseToLabelSelector(selector)
+	if err != nil {
+		return nil, err
+	}
+	return metav1.LabelSelectorAsSelector(s)
+}
 func (r *ReconcileSecurityGroup) addRule(id string, rule openstackv1beta1.SecurityGroupRule) error {
 	createOpts := rules.CreateOpts{
 		Direction:      rules.RuleDirection(rule.Direction),
