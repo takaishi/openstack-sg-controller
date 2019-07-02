@@ -235,22 +235,10 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 		return reconcile.Result{}, err
 	}
 
-	existsNodeIDs := []string{}
-	for _, node := range nodes {
-		existsNodeIDs = append(existsNodeIDs, strings.ToLower(node.Status.NodeInfo.SystemUUID))
-	}
-
-	for _, id := range instance.Status.Nodes {
-		if !containsString(existsNodeIDs, id) {
-			log.Info("Info", "Dettach SG from Server", strings.ToLower(id))
-			err := r.osClient.DettachSG(strings.ToLower(id), sg.Name)
-			if err != nil {
-				log.Info("Error", "Failed to Detach SG", err.Error())
-				return reconcile.Result{}, err
-			}
-
-			instance.Status.Nodes = removeString(instance.Status.Nodes, id)
-		}
+	err = r.detachSG(instance, sg, nodes)
+	if err != nil {
+		log.Info("Error", "Failed to detachSG", err.Error())
+		return reconcile.Result{}, err
 	}
 
 	// SGのルールがResource側にない場合、ルールを削除
@@ -372,6 +360,27 @@ func (r *ReconcileSecurityGroup) getNodes(instance *openstackv1beta1.SecurityGro
 	}
 
 	return nodes.Items, nil
+}
+
+func (r *ReconcileSecurityGroup) detachSG(instance *openstackv1beta1.SecurityGroup, sg *groups.SecGroup, nodes []v1.Node) error {
+	existsNodeIDs := []string{}
+	for _, node := range nodes {
+		existsNodeIDs = append(existsNodeIDs, strings.ToLower(node.Status.NodeInfo.SystemUUID))
+	}
+
+	for _, id := range instance.Status.Nodes {
+		if !containsString(existsNodeIDs, id) {
+			log.Info("Info", "Dettach SG from Server", strings.ToLower(id))
+			err := r.osClient.DettachSG(strings.ToLower(id), sg.Name)
+			if err != nil {
+				log.Info("Error", "Failed to DetachSG", err.Error())
+				return err
+			}
+			instance.Status.Nodes = removeString(instance.Status.Nodes, id)
+		}
+	}
+
+	return nil
 }
 
 func labelSelector(instance *openstackv1beta1.SecurityGroup) string {
