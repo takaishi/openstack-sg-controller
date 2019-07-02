@@ -241,24 +241,10 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 		return reconcile.Result{}, err
 	}
 
-	// SGのルールがResource側にない場合、ルールを削除
-	for _, existRule := range sg.Rules {
-		delete := true
-		for _, rule := range instance.Spec.Rules {
-			if existRule.RemoteIPPrefix == rule.RemoteIpPrefix &&
-				existRule.PortRangeMax == rule.PortRangeMax &&
-				existRule.PortRangeMin == rule.PortRangeMin {
-				delete = false
-			}
-		}
-		if delete {
-			log.Info("Deleting SG Rule", "cidr", existRule.RemoteIPPrefix, "port", fmt.Sprintf("%d-%d", existRule.PortRangeMin, existRule.PortRangeMax))
-			err = r.osClient.DeleteSecurityGroupRule(existRule.ID)
-			if err != nil {
-				return reconcile.Result{}, err
-			}
-			log.Info("Success to delete SG Rule", "cidr", existRule.RemoteIPPrefix, "port", fmt.Sprintf("%d-%d", existRule.PortRangeMin, existRule.PortRangeMax))
-		}
+	err = r.deleteRule(instance, sg)
+	if err != nil {
+		log.Info("Error", "Failed to deleteRule", err.Error())
+		return reconcile.Result{}, err
 	}
 
 	for _, node := range nodes {
@@ -380,6 +366,29 @@ func (r *ReconcileSecurityGroup) detachSG(instance *openstackv1beta1.SecurityGro
 		}
 	}
 
+	return nil
+}
+
+func (r *ReconcileSecurityGroup) deleteRule(instance *openstackv1beta1.SecurityGroup, sg *groups.SecGroup) error {
+	// SGのルールがResource側にない場合、ルールを削除
+	for _, existRule := range sg.Rules {
+		delete := true
+		for _, rule := range instance.Spec.Rules {
+			if existRule.RemoteIPPrefix == rule.RemoteIpPrefix &&
+				existRule.PortRangeMax == rule.PortRangeMax &&
+				existRule.PortRangeMin == rule.PortRangeMin {
+				delete = false
+			}
+		}
+		if delete {
+			log.Info("Deleting SG Rule", "cidr", existRule.RemoteIPPrefix, "port", fmt.Sprintf("%d-%d", existRule.PortRangeMin, existRule.PortRangeMax))
+			err := r.osClient.DeleteSecurityGroupRule(existRule.ID)
+			if err != nil {
+				return err
+			}
+			log.Info("Success to delete SG Rule", "cidr", existRule.RemoteIPPrefix, "port", fmt.Sprintf("%d-%d", existRule.PortRangeMin, existRule.PortRangeMax))
+		}
+	}
 	return nil
 }
 
