@@ -210,23 +210,10 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 	}
 
 	// Resource側のルールがない場合、SGにルールを追加
-	for _, rule := range instance.Spec.Rules {
-		exists := false
-		for _, existsRule := range sg.Rules {
-			if rule.RemoteIpPrefix == existsRule.RemoteIPPrefix &&
-				rule.PortRangeMax == existsRule.PortRangeMax &&
-				rule.PortRangeMin == existsRule.PortRangeMin {
-				exists = true
-			}
-		}
-
-		if !exists {
-			r.addRule(sg.ID, rule)
-			if err != nil {
-				log.Info("Error", "addRule", err.Error())
-				return reconcile.Result{}, err
-			}
-		}
+	err = r.addRule(instance, sg)
+	if err != nil {
+		log.Info("Error", "addRule", err.Error())
+		return reconcile.Result{}, err
 	}
 
 	nodes, err := r.getNodes(instance)
@@ -269,23 +256,36 @@ func convertLabelSelectorToLabelsSelector(selector string) (labels.Selector, err
 	}
 	return metav1.LabelSelectorAsSelector(s)
 }
-func (r *ReconcileSecurityGroup) addRule(id string, rule openstackv1beta1.SecurityGroupRule) error {
-	createOpts := rules.CreateOpts{
-		Direction:      rules.RuleDirection(rule.Direction),
-		SecGroupID:     id,
-		PortRangeMax:   rule.PortRangeMax,
-		PortRangeMin:   rule.PortRangeMin,
-		RemoteIPPrefix: rule.RemoteIpPrefix,
-		EtherType:      rules.RuleEtherType(rule.EtherType),
-		Protocol:       rules.RuleProtocol(rule.Protocol),
-	}
-	log.Info("Creating SG Rule", "cidr", rule.RemoteIpPrefix, "port", fmt.Sprintf("%d-%d", rule.PortRangeMin, rule.PortRangeMax))
-	err := r.osClient.AddSecurityGroupRule(createOpts)
-	if err != nil {
-		return err
-	}
-	log.Info("Success to create SG Rule", "cidr", rule.RemoteIpPrefix, "port", fmt.Sprintf("%d-%d", rule.PortRangeMin, rule.PortRangeMax))
+func (r *ReconcileSecurityGroup) addRule(instance *openstackv1beta1.SecurityGroup, sg *groups.SecGroup) error {
+	for _, rule := range instance.Spec.Rules {
+		exists := false
+		for _, existsRule := range sg.Rules {
+			if rule.RemoteIpPrefix == existsRule.RemoteIPPrefix &&
+				rule.PortRangeMax == existsRule.PortRangeMax &&
+				rule.PortRangeMin == existsRule.PortRangeMin {
+				exists = true
+			}
+		}
 
+		if !exists {
+			createOpts := rules.CreateOpts{
+				Direction:      rules.RuleDirection(rule.Direction),
+				SecGroupID:     sg.ID,
+				PortRangeMax:   rule.PortRangeMax,
+				PortRangeMin:   rule.PortRangeMin,
+				RemoteIPPrefix: rule.RemoteIpPrefix,
+				EtherType:      rules.RuleEtherType(rule.EtherType),
+				Protocol:       rules.RuleProtocol(rule.Protocol),
+			}
+			log.Info("Creating SG Rule", "cidr", rule.RemoteIpPrefix, "port", fmt.Sprintf("%d-%d", rule.PortRangeMin, rule.PortRangeMax))
+			err := r.osClient.AddSecurityGroupRule(createOpts)
+			if err != nil {
+				log.Info("Error", "addRule", err.Error())
+				return err
+			}
+			log.Info("Success to create SG Rule", "cidr", rule.RemoteIpPrefix, "port", fmt.Sprintf("%d-%d", rule.PortRangeMin, rule.PortRangeMax))
+		}
+	}
 	return nil
 }
 
