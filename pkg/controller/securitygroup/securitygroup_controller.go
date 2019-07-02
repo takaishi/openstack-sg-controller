@@ -195,32 +195,35 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 
 	var sg *groups.SecGroup
 
-	// Check if the SecurityGroup already exists
+	// Create the SecurityGroup when it's no exists
 	sg, err = r.createSG(instance, tenant)
 	if err != nil {
 		log.Info("Error", "Failed to createSG", err.Error())
 		return reconcile.Result{}, err
 	}
 
-	// Resource側のルールがない場合、SGにルールを追加
+	// Add the rule to securityGroup when that does'nt have.
 	err = r.addRule(instance, sg)
 	if err != nil {
 		log.Info("Error", "addRule", err.Error())
 		return reconcile.Result{}, err
 	}
 
+	// Detach the securityGroup from node when node's label are unmatch.
 	err = r.detachSG(instance, sg, nodes)
 	if err != nil {
 		log.Info("Error", "Failed to detachSG", err.Error())
 		return reconcile.Result{}, err
 	}
 
+	// Delete the rule from securityGroup when spec doesn't have.
 	err = r.deleteRule(instance, sg)
 	if err != nil {
 		log.Info("Error", "Failed to deleteRule", err.Error())
 		return reconcile.Result{}, err
 	}
 
+	// Atach securityGroup to node.
 	err = r.attachSG(instance, sg, nodes)
 	if err != nil {
 		log.Info("Error", "Failed to attachSG", err.Error())
