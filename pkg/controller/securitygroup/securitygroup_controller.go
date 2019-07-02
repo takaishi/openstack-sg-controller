@@ -229,24 +229,14 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 		}
 	}
 
-	var nodes v1.NodeList
-	ls, err := convertLabelSelectorToLabelsSelector(labelSelector(instance))
+	nodes, err := r.getNodes(instance)
 	if err != nil {
-		return reconcile.Result{}, err
-	}
-
-	listOpts := client.ListOptions{
-		LabelSelector: ls,
-	}
-
-	err = r.List(context.Background(), &listOpts, &nodes)
-	if err != nil {
-		log.Info("Error", "Failed to NodeList", err.Error())
+		log.Info("Error", "Failed to get Nodes", err.Error())
 		return reconcile.Result{}, err
 	}
 
 	existsNodeIDs := []string{}
-	for _, node := range nodes.Items {
+	for _, node := range nodes {
 		existsNodeIDs = append(existsNodeIDs, strings.ToLower(node.Status.NodeInfo.SystemUUID))
 	}
 
@@ -283,7 +273,7 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 		}
 	}
 
-	for _, node := range nodes.Items {
+	for _, node := range nodes {
 		id := node.Status.NodeInfo.SystemUUID
 		hasSg, err := r.osClient.ServerHasSG(strings.ToLower(id), sg.Name)
 		if err != nil {
@@ -363,6 +353,25 @@ func (r *ReconcileSecurityGroup) runFinalizer(sg *openstackv1beta1.SecurityGroup
 	}
 
 	return reconcile.Result{}, nil
+}
+
+func (r *ReconcileSecurityGroup) getNodes(instance *openstackv1beta1.SecurityGroup) ([]v1.Node, error) {
+	var nodes v1.NodeList
+	ls, err := convertLabelSelectorToLabelsSelector(labelSelector(instance))
+	if err != nil {
+		return nil, err
+	}
+
+	listOpts := client.ListOptions{
+		LabelSelector: ls,
+	}
+
+	err = r.List(context.Background(), &listOpts, &nodes)
+	if err != nil {
+		return nil, err
+	}
+
+	return nodes.Items, nil
 }
 
 func labelSelector(instance *openstackv1beta1.SecurityGroup) string {
