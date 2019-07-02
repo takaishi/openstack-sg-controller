@@ -5,13 +5,12 @@
 package mock_openstack
 
 import (
-	reflect "reflect"
-
 	gomock "github.com/golang/mock/gomock"
 	tenants "github.com/gophercloud/gophercloud/openstack/identity/v2/tenants"
 	projects "github.com/gophercloud/gophercloud/openstack/identity/v3/projects"
 	groups "github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/groups"
 	rules "github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/rules"
+	reflect "reflect"
 )
 
 // MockOpenStackClientInterface is a mock of OpenStackClientInterface interface
@@ -183,16 +182,16 @@ func (mr *MockOpenStackClientInterfaceMockRecorder) AttachSG(id, sgName interfac
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AttachSG", reflect.TypeOf((*MockOpenStackClientInterface)(nil).AttachSG), id, sgName)
 }
 
-// DettachSG mocks base method
-func (m *MockOpenStackClientInterface) DettachSG(id, sgName string) error {
+// DetachSG mocks base method
+func (m *MockOpenStackClientInterface) DetachSG(id, sgName string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DettachSG", id, sgName)
+	ret := m.ctrl.Call(m, "DetachSG", id, sgName)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// DettachSG indicates an expected call of DettachSG
-func (mr *MockOpenStackClientInterfaceMockRecorder) DettachSG(id, sgName interface{}) *gomock.Call {
+// DetachSG indicates an expected call of DetachSG
+func (mr *MockOpenStackClientInterfaceMockRecorder) DetachSG(id, sgName interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DettachSG", reflect.TypeOf((*MockOpenStackClientInterface)(nil).DettachSG), id, sgName)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DetachSG", reflect.TypeOf((*MockOpenStackClientInterface)(nil).DetachSG), id, sgName)
 }
