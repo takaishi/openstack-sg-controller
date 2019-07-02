@@ -136,8 +136,8 @@ func (r *ReconcileSecurityGroup) deleteExternalDependency(instance *openstackv1b
 		}
 
 		if hasSg {
-			log.Info("Info", "Dettach SG from Server: ", strings.ToLower(id))
-			r.osClient.DettachSG(strings.ToLower(id), instance.Status.Name)
+			log.Info("Info", "Detach SG from Server: ", strings.ToLower(id))
+			r.osClient.DetachSG(strings.ToLower(id), instance.Status.Name)
 		}
 	}
 
@@ -355,8 +355,8 @@ func (r *ReconcileSecurityGroup) detachSG(instance *openstackv1beta1.SecurityGro
 
 	for _, id := range instance.Status.Nodes {
 		if !containsString(existsNodeIDs, id) {
-			log.Info("Info", "Dettach SG from Server", strings.ToLower(id))
-			err := r.osClient.DettachSG(strings.ToLower(id), sg.Name)
+			log.Info("Info", "Detach SG from Server", strings.ToLower(id))
+			err := r.osClient.DetachSG(strings.ToLower(id), sg.Name)
 			if err != nil {
 				log.Info("Error", "Failed to DetachSG", err.Error())
 				return err
