@@ -187,6 +187,12 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 		return reconcile.Result{}, err
 	}
 
+	nodes, err := r.getNodes(instance)
+	if err != nil {
+		log.Info("Error", "Failed to get Nodes", err.Error())
+		return reconcile.Result{}, err
+	}
+
 	var sg *groups.SecGroup
 
 	// Check if the SecurityGroup already exists
@@ -200,12 +206,6 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 	err = r.addRule(instance, sg)
 	if err != nil {
 		log.Info("Error", "addRule", err.Error())
-		return reconcile.Result{}, err
-	}
-
-	nodes, err := r.getNodes(instance)
-	if err != nil {
-		log.Info("Error", "Failed to get Nodes", err.Error())
 		return reconcile.Result{}, err
 	}
 
