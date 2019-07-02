@@ -247,22 +247,10 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 		return reconcile.Result{}, err
 	}
 
-	for _, node := range nodes {
-		id := node.Status.NodeInfo.SystemUUID
-		hasSg, err := r.osClient.ServerHasSG(strings.ToLower(id), sg.Name)
-		if err != nil {
-			log.Info("Error", "Failed to ServerHasSG", err.Error())
-			return reconcile.Result{}, err
-		}
-
-		if !hasSg {
-			log.Info("Info", "Attach SG to Server", strings.ToLower(id))
-			if err = r.osClient.AttachSG(strings.ToLower(id), sg.Name); err != nil {
-				log.Info("Debug", "failed to attach sg", err.Error())
-				return reconcile.Result{}, err
-			}
-			instance.Status.Nodes = append(instance.Status.Nodes, strings.ToLower(id))
-		}
+	err = r.attachSG(instance, sg, nodes)
+	if err != nil {
+		log.Info("Error", "Failed to attachSG", err.Error())
+		return reconcile.Result{}, err
 	}
 
 	if err := r.Status().Update(context.Background(), instance); err != nil {
@@ -389,6 +377,28 @@ func (r *ReconcileSecurityGroup) deleteRule(instance *openstackv1beta1.SecurityG
 			log.Info("Success to delete SG Rule", "cidr", existRule.RemoteIPPrefix, "port", fmt.Sprintf("%d-%d", existRule.PortRangeMin, existRule.PortRangeMax))
 		}
 	}
+	return nil
+}
+
+func (r *ReconcileSecurityGroup) attachSG(instance *openstackv1beta1.SecurityGroup, sg *groups.SecGroup, nodes []v1.Node) error {
+	for _, node := range nodes {
+		id := node.Status.NodeInfo.SystemUUID
+		hasSg, err := r.osClient.ServerHasSG(strings.ToLower(id), sg.Name)
+		if err != nil {
+			log.Info("Error", "Failed to ServerHasSG", err.Error())
+			return err
+		}
+
+		if !hasSg {
+			log.Info("Info", "Attach SG to Server", strings.ToLower(id))
+			if err = r.osClient.AttachSG(strings.ToLower(id), sg.Name); err != nil {
+				log.Info("Debug", "failed to attach sg", err.Error())
+				return err
+			}
+			instance.Status.Nodes = append(instance.Status.Nodes, strings.ToLower(id))
+		}
+	}
+
 	return nil
 }
 
