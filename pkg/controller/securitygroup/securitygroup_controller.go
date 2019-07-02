@@ -19,6 +19,7 @@ package securitygroup
 import (
 	"context"
 	"fmt"
+	"github.com/gophercloud/gophercloud/openstack/identity/v3/projects"
 	"os"
 	"strings"
 	"time"
@@ -189,24 +190,10 @@ func (r *ReconcileSecurityGroup) Reconcile(request reconcile.Request) (reconcile
 	var sg *groups.SecGroup
 
 	// Check if the SecurityGroup already exists
-	sg, err = r.osClient.GetSecurityGroup(instance.Status.ID)
+	sg, err = r.createSG(instance, tenant)
 	if err != nil {
-		switch err.(type) {
-		case gophercloud.ErrDefault404:
-			log.Info("Creating SG", "name", instance.Spec.Name)
-			name := instance.Spec.Name
-
-			sg, err = r.osClient.CreateSecurityGroup(name, "", tenant.ID)
-			if err != nil {
-				log.Info("Error", "msg", err.Error())
-			}
-			instance.Status.ID = sg.ID
-			instance.Status.Name = sg.Name
-			log.Info("Success creating SG", "name", instance.Spec.Name, "id", sg.ID)
-		default:
-			log.Info("Debug: errorrrrrr")
-			return reconcile.Result{}, err
-		}
+		log.Info("Error", "Failed to createSG", err.Error())
+		return reconcile.Result{}, err
 	}
 
 	// Resource側のルールがない場合、SGにルールを追加
@@ -256,6 +243,30 @@ func convertLabelSelectorToLabelsSelector(selector string) (labels.Selector, err
 	}
 	return metav1.LabelSelectorAsSelector(s)
 }
+func (r *ReconcileSecurityGroup) createSG(instance *openstackv1beta1.SecurityGroup, tenant projects.Project) (*groups.SecGroup, error) {
+	sg, err := r.osClient.GetSecurityGroup(instance.Status.ID)
+	if err != nil {
+		switch err.(type) {
+		case gophercloud.ErrDefault404:
+			log.Info("Creating SG", "name", instance.Spec.Name)
+			name := instance.Spec.Name
+
+			sg, err = r.osClient.CreateSecurityGroup(name, "", tenant.ID)
+			if err != nil {
+				log.Info("Error", "msg", err.Error())
+			}
+			instance.Status.ID = sg.ID
+			instance.Status.Name = sg.Name
+			log.Info("Success creating SG", "name", instance.Spec.Name, "id", sg.ID)
+		default:
+			log.Info("Debug: errorrrrrr")
+			return sg, err
+		}
+	}
+
+	return sg, nil
+}
+
 func (r *ReconcileSecurityGroup) addRule(instance *openstackv1beta1.SecurityGroup, sg *groups.SecGroup) error {
 	for _, rule := range instance.Spec.Rules {
 		exists := false
