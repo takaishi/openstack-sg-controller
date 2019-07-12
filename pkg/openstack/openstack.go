@@ -3,12 +3,13 @@ package openstack
 import (
 	"crypto/tls"
 	"fmt"
-	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/secgroups"
-	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
 	"io/ioutil"
-	utilrand "k8s.io/apimachinery/pkg/util/rand"
 	"net/http"
 	"os"
+
+	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/secgroups"
+	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
+	utilrand "k8s.io/apimachinery/pkg/util/rand"
 
 	"github.com/gophercloud/gophercloud"
 	_openstack "github.com/gophercloud/gophercloud/openstack"
@@ -85,6 +86,10 @@ func NewClient() (OpenStackClientInterface, error) {
 	err = _openstack.Authenticate(client.providerClient, authOpts)
 	if err != nil {
 		return nil, err
+	}
+
+	client.providerClient.ReauthFunc = func() error {
+		return _openstack.Authenticate(client.providerClient, authOpts)
 	}
 
 	return &client, nil
