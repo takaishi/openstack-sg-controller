@@ -9,7 +9,6 @@ import (
 
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/secgroups"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
-	utilrand "k8s.io/apimachinery/pkg/util/rand"
 
 	"github.com/gophercloud/gophercloud"
 	_openstack "github.com/gophercloud/gophercloud/openstack"
