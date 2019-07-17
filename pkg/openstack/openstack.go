@@ -86,6 +86,10 @@ func NewClient() (OpenStackClientInterface, error) {
 		return nil, err
 	}
 
+	client.providerClient.ReauthFunc = func() error {
+		return _openstack.Authenticate(client.providerClient, authOpts)
+	}
+
 	return &client, nil
 }
 
