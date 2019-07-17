@@ -37,8 +37,7 @@ type OpenStackClientInterface interface {
 
 	ServerHasSG(id string, sgName string) (bool, error)
 	AttachSG(id string, sgName string) error
-	DettachSG(id string, sgName string) error
-	RandomString() string
+	DetachSG(id string, sgName string) error
 }
 
 type OpenStackClient struct {
@@ -293,7 +292,7 @@ func (client *OpenStackClient) AttachSG(id string, sgName string) error {
 	return nil
 }
 
-func (client *OpenStackClient) DettachSG(id string, sgName string) error {
+func (client *OpenStackClient) DetachSG(id string, sgName string) error {
 	computeClient, err := _openstack.NewComputeV2(client.providerClient, gophercloud.EndpointOpts{Region: client.regionName})
 	if err != nil {
 		return err
@@ -305,9 +304,4 @@ func (client *OpenStackClient) DettachSG(id string, sgName string) error {
 	}
 
 	return nil
-}
-
-func (client *OpenStackClient) RandomString() string {
-	randomLength := 5
-	return utilrand.String(randomLength)
 }

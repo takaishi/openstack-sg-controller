@@ -182,30 +182,16 @@ func (mr *MockOpenStackClientInterfaceMockRecorder) AttachSG(id, sgName interfac
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AttachSG", reflect.TypeOf((*MockOpenStackClientInterface)(nil).AttachSG), id, sgName)
 }
 
-// DettachSG mocks base method
-func (m *MockOpenStackClientInterface) DettachSG(id, sgName string) error {
+// DetachSG mocks base method
+func (m *MockOpenStackClientInterface) DetachSG(id, sgName string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DettachSG", id, sgName)
+	ret := m.ctrl.Call(m, "DetachSG", id, sgName)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// DettachSG indicates an expected call of DettachSG
-func (mr *MockOpenStackClientInterfaceMockRecorder) DettachSG(id, sgName interface{}) *gomock.Call {
+// DetachSG indicates an expected call of DetachSG
+func (mr *MockOpenStackClientInterfaceMockRecorder) DetachSG(id, sgName interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DettachSG", reflect.TypeOf((*MockOpenStackClientInterface)(nil).DettachSG), id, sgName)
-}
-
-// RandomString mocks base method
-func (m *MockOpenStackClientInterface) RandomString() string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RandomString")
-	ret0, _ := ret[0].(string)
-	return ret0
-}
-
-// RandomString indicates an expected call of RandomString
-func (mr *MockOpenStackClientInterfaceMockRecorder) RandomString() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RandomString", reflect.TypeOf((*MockOpenStackClientInterface)(nil).RandomString))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DetachSG", reflect.TypeOf((*MockOpenStackClientInterface)(nil).DetachSG), id, sgName)
 }
