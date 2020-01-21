@@ -8,6 +8,7 @@ import (
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/identity/v3/projects"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/groups"
+	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/rules"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	openstackv1beta1 "github.com/takaishi/openstack-sg-controller/api/v1beta1"
@@ -459,6 +460,171 @@ func TestSecurityGroupReconciler_ensureSG(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("ensureSG() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSecurityGroupReconciler_addRule(t *testing.T) {
+	type fields struct {
+		Client   client.Client
+		Log      logr.Logger
+		Scheme   *runtime.Scheme
+		osClient internal.OpenStackClientInterface
+	}
+	type args struct {
+		instance *openstackv1beta1.SecurityGroup
+		sg       *groups.SecGroup
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		before  func(controller *gomock.Controller) internal.OpenStackClientInterface
+		args    args
+		wantErr bool
+	}{
+		{
+			name: "security group does not have rule.",
+			before: func(controller *gomock.Controller) internal.OpenStackClientInterface {
+				opts := rules.CreateOpts{
+					Direction:      "ingress",
+					SecGroupID:     "test-secgroup-id",
+					PortRangeMax:   8888,
+					PortRangeMin:   8888,
+					RemoteIPPrefix: "192.0.2.0/24",
+					EtherType:      rules.RuleEtherType("IPv4"),
+					Protocol:       rules.RuleProtocol("tcp"),
+				}
+				osClient := internal.NewMockOpenStackClientInterface(controller)
+				osClient.EXPECT().AddSecurityGroupRule(opts).Return(nil)
+				return osClient
+			},
+			args: args{
+				instance: &openstackv1beta1.SecurityGroup{
+					Spec: openstackv1beta1.SecurityGroupSpec{
+						Name:   "test-sg",
+						Tenant: "aaa",
+						Rules: []openstackv1beta1.SecurityGroupRule{
+							{
+								Direction:      "ingress",
+								PortRangeMax:   8888,
+								PortRangeMin:   8888,
+								RemoteIpPrefix: "192.0.2.0/24",
+								EtherType:      "IPv4",
+								Protocol:       "tcp",
+							},
+						},
+					},
+					Status: openstackv1beta1.SecurityGroupStatus{
+						ID: "test-sg-id",
+					},
+				},
+				sg: &groups.SecGroup{
+					ID:    "test-secgroup-id",
+					Rules: []rules.SecGroupRule{},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "security group have rule already.",
+			before: func(controller *gomock.Controller) internal.OpenStackClientInterface {
+				osClient := internal.NewMockOpenStackClientInterface(controller)
+				return osClient
+			},
+			args: args{
+				instance: &openstackv1beta1.SecurityGroup{
+					Spec: openstackv1beta1.SecurityGroupSpec{
+						Name:   "test-sg",
+						Tenant: "aaa",
+						Rules: []openstackv1beta1.SecurityGroupRule{
+							{
+								Direction:      "ingress",
+								PortRangeMax:   8888,
+								PortRangeMin:   8888,
+								RemoteIpPrefix: "192.0.2.0/24",
+								EtherType:      "IPv4",
+								Protocol:       "tcp",
+							},
+						},
+					},
+					Status: openstackv1beta1.SecurityGroupStatus{
+						ID: "test-sg-id",
+					},
+				},
+				sg: &groups.SecGroup{
+					ID: "test-secgroup-id",
+					Rules: []rules.SecGroupRule{
+						{
+							Direction:      "ingress",
+							PortRangeMax:   8888,
+							PortRangeMin:   8888,
+							RemoteIPPrefix: "192.0.2.0/24",
+							EtherType:      "IPv4",
+							Protocol:       "tcp",
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "AddSecurityGroupRule return error.",
+			before: func(controller *gomock.Controller) internal.OpenStackClientInterface {
+				opts := rules.CreateOpts{
+					Direction:      "ingress",
+					SecGroupID:     "test-secgroup-id",
+					PortRangeMax:   8888,
+					PortRangeMin:   8888,
+					RemoteIPPrefix: "192.0.2.0/24",
+					EtherType:      rules.RuleEtherType("IPv4"),
+					Protocol:       rules.RuleProtocol("tcp"),
+				}
+				osClient := internal.NewMockOpenStackClientInterface(controller)
+				osClient.EXPECT().AddSecurityGroupRule(opts).Return(fmt.Errorf("error"))
+				return osClient
+			},
+			args: args{
+				instance: &openstackv1beta1.SecurityGroup{
+					Spec: openstackv1beta1.SecurityGroupSpec{
+						Name:   "test-sg",
+						Tenant: "aaa",
+						Rules: []openstackv1beta1.SecurityGroupRule{
+							{
+								Direction:      "ingress",
+								PortRangeMax:   8888,
+								PortRangeMin:   8888,
+								RemoteIpPrefix: "192.0.2.0/24",
+								EtherType:      "IPv4",
+								Protocol:       "tcp",
+							},
+						},
+					},
+					Status: openstackv1beta1.SecurityGroupStatus{
+						ID: "test-sg-id",
+					},
+				},
+				sg: &groups.SecGroup{
+					ID:    "test-secgroup-id",
+					Rules: []rules.SecGroupRule{},
+				},
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockCtrl = gomock.NewController(t)
+			defer mockCtrl.Finish()
+			osClient := tt.before(mockCtrl)
+			r := &SecurityGroupReconciler{
+				Client:   tt.fields.Client,
+				Log:      ctrl.Log.WithName("controllers").WithName("SecurityGroup"),
+				Scheme:   tt.fields.Scheme,
+				osClient: osClient,
+			}
+			if err := r.addRule(tt.args.instance, tt.args.sg); (err != nil) != tt.wantErr {
+				t.Errorf("addRule() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}
