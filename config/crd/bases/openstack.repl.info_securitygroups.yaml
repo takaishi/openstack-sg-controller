@@ -1,0 +1,132 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  creationTimestamp: null
+  name: securitygroups.openstack.repl.info
+spec:
+  group: openstack.repl.info
+  names:
+    kind: SecurityGroup
+    plural: securitygroups
+  scope: ""
+  subresources:
+    status: {}
+  validation:
+    openAPIV3Schema:
+      description: SecurityGroup is the Schema for the securitygroups API
+      properties:
+        apiVersion:
+          description: 'APIVersion defines the versioned schema of this representation
+            of an object. Servers should convert recognized schemas to the latest
+            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+          type: string
+        kind:
+          description: 'Kind is a string value representing the REST resource this
+            object represents. Servers may infer this from the endpoint the client
+            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+          type: string
+        metadata:
+          type: object
+        spec:
+          description: SecurityGroupSpec defines the desired state of SecurityGroup
+          properties:
+            name:
+              type: string
+            nodeSelector:
+              additionalProperties:
+                type: string
+              description: Foo is an example field of SecurityGroup. Edit SecurityGroup_types.go
+                to remove/update
+              type: object
+            rules:
+              items:
+                properties:
+                  direction:
+                    enum:
+                    - ingress
+                    - egress
+                    type: string
+                  etherType:
+                    enum:
+                    - IPv4
+                    - IPv6
+                    type: string
+                  portRangeMax:
+                    maximum: 65535
+                    minimum: 0
+                    type: integer
+                  portRangeMin:
+                    maximum: 65535
+                    minimum: 0
+                    type: integer
+                  protocol:
+                    enum:
+                    - ah
+                    - dccp
+                    - egp
+                    - esp
+                    - gre
+                    - icmp
+                    - igmp
+                    - ipv6-encap
+                    - ipv6-frag
+                    - ipv6-icmp
+                    - ipv6-nonxt
+                    - ipv6-opts
+                    - ipv6-route
+                    - ospf
+                    - pgm
+                    - rsvp
+                    - sctp
+                    - tcp
+                    - udp
+                    - udplite
+                    - vrrp
+                    type: string
+                  remoteIpPrefix:
+                    type: string
+                required:
+                - direction
+                - etherType
+                - portRangeMax
+                - portRangeMin
+                - protocol
+                - remoteIpPrefix
+                type: object
+              type: array
+            tenant:
+              type: string
+          required:
+          - name
+          - nodeSelector
+          - rules
+          type: object
+        status:
+          description: SecurityGroupStatus defines the observed state of SecurityGroup
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+            nodes:
+              description: 'INSERT ADDITIONAL STATUS FIELD - define observed state
+                of cluster Important: Run "make" to regenerate code after modifying
+                this file'
+              items:
+                type: string
+              type: array
+          type: object
+      type: object
+  version: v1beta1
+  versions:
+  - name: v1beta1
+    served: true
+    storage: true
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

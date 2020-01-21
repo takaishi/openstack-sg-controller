@@ -1,3 +1,7 @@
-version: "1"
 domain: repl.info
-repo: github.com/takaishi/openstack-sg-controller
+repo: github.com/takaishi/openstack-sg-controller-v2
+resources:
+- group: openstack
+  kind: SecurityGroup
+  version: v1beta1
+version: "2"
