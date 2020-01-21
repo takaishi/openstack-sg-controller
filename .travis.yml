@@ -8,7 +8,7 @@ env:
     - TEST_ASSET_ETCD=/home/travis/gopath/src/github.com/takaishi/openstack-sg-controller/kubebuilder_1.0.8_linux_amd64/bin/etcd
 
 go:
-  - "1.12.x"
+  - "1.13.x"
 
 script:
   - pwd
