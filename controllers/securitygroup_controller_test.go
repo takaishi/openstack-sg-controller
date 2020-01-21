@@ -6,7 +6,7 @@ import (
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	openstackv1beta1 "github.com/takaishi/openstack-sg-controller-v2/api/v1beta1"
+	openstackv1beta1 "github.com/takaishi/openstack-sg-controller/api/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"

@@ -23,14 +23,14 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/identity/v3/projects"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/groups"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/rules"
-	"github.com/takaishi/openstack-sg-controller-v2/internal"
+	"github.com/takaishi/openstack-sg-controller/internal"
 	"path/filepath"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	openstackv1beta1 "github.com/takaishi/openstack-sg-controller-v2/api/v1beta1"
+	openstackv1beta1 "github.com/takaishi/openstack-sg-controller/api/v1beta1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"

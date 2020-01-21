@@ -23,7 +23,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/identity/v3/projects"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/groups"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/rules"
-	"github.com/takaishi/openstack-sg-controller-v2/internal"
+	"github.com/takaishi/openstack-sg-controller/internal"
 	v1 "k8s.io/api/core/v1"
 	errors_ "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -37,7 +37,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	openstackv1beta1 "github.com/takaishi/openstack-sg-controller-v2/api/v1beta1"
+	openstackv1beta1 "github.com/takaishi/openstack-sg-controller/api/v1beta1"
 )
 
 var finalizerName = "finalizer.securitygroups.openstack.repl.info"

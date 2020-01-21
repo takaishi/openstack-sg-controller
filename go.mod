@@ -1,4 +1,4 @@
-module github.com/takaishi/openstack-sg-controller-v2
+module github.com/takaishi/openstack-sg-controller
 
 go 1.13
 
