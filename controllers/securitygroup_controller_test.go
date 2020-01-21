@@ -653,3 +653,153 @@ func TestSecurityGroupReconciler_addRule(t *testing.T) {
 		})
 	}
 }
+
+func TestSecurityGroupReconciler_deleteRule(t *testing.T) {
+	type fields struct {
+		Client   client.Client
+		Log      logr.Logger
+		Scheme   *runtime.Scheme
+		osClient internal.OpenStackClientInterface
+	}
+	type args struct {
+		instance *openstackv1beta1.SecurityGroup
+		sg       *groups.SecGroup
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		before  func(controller *gomock.Controller) internal.OpenStackClientInterface
+		args    args
+		wantErr bool
+	}{
+		{
+			name: "SecurityGroup does not have rule",
+			before: func(controller *gomock.Controller) internal.OpenStackClientInterface {
+				osClient := internal.NewMockOpenStackClientInterface(controller)
+				osClient.EXPECT().DeleteSecurityGroupRule("test-rule-id").Return(nil)
+				return osClient
+			},
+			args: args{
+				instance: &openstackv1beta1.SecurityGroup{
+					Spec: openstackv1beta1.SecurityGroupSpec{
+						Name:   "test-sg",
+						Tenant: "aaa",
+						Rules:  []openstackv1beta1.SecurityGroupRule{},
+					},
+					Status: openstackv1beta1.SecurityGroupStatus{
+						ID: "test-sg-id",
+					},
+				},
+				sg: &groups.SecGroup{
+					ID: "test-secgroup-id",
+					Rules: []rules.SecGroupRule{
+						{
+							ID:             "test-rule-id",
+							Direction:      "ingress",
+							PortRangeMax:   8888,
+							PortRangeMin:   8888,
+							RemoteIPPrefix: "192.0.2.0/24",
+							EtherType:      "IPv4",
+							Protocol:       "tcp",
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "SecurityGroup does not have rule",
+			before: func(controller *gomock.Controller) internal.OpenStackClientInterface {
+				osClient := internal.NewMockOpenStackClientInterface(controller)
+				return osClient
+			},
+			args: args{
+				instance: &openstackv1beta1.SecurityGroup{
+					Spec: openstackv1beta1.SecurityGroupSpec{
+						Name:   "test-sg",
+						Tenant: "aaa",
+						Rules: []openstackv1beta1.SecurityGroupRule{
+							{
+								Direction:      "ingress",
+								PortRangeMax:   8888,
+								PortRangeMin:   8888,
+								RemoteIpPrefix: "192.0.2.0/24",
+								EtherType:      "IPv4",
+								Protocol:       "tcp",
+							},
+						},
+					},
+					Status: openstackv1beta1.SecurityGroupStatus{
+						ID: "test-sg-id",
+					},
+				},
+				sg: &groups.SecGroup{
+					ID: "test-secgroup-id",
+					Rules: []rules.SecGroupRule{
+						{
+							ID:             "test-rule-id",
+							Direction:      "ingress",
+							PortRangeMax:   8888,
+							PortRangeMin:   8888,
+							RemoteIPPrefix: "192.0.2.0/24",
+							EtherType:      "IPv4",
+							Protocol:       "tcp",
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "DeleteSecurityGroupRule return error",
+			before: func(controller *gomock.Controller) internal.OpenStackClientInterface {
+				osClient := internal.NewMockOpenStackClientInterface(controller)
+				osClient.EXPECT().DeleteSecurityGroupRule("test-rule-id").Return(fmt.Errorf("error"))
+				return osClient
+			},
+			args: args{
+				instance: &openstackv1beta1.SecurityGroup{
+					Spec: openstackv1beta1.SecurityGroupSpec{
+						Name:   "test-sg",
+						Tenant: "aaa",
+						Rules:  []openstackv1beta1.SecurityGroupRule{},
+					},
+					Status: openstackv1beta1.SecurityGroupStatus{
+						ID: "test-sg-id",
+					},
+				},
+				sg: &groups.SecGroup{
+					ID: "test-secgroup-id",
+					Rules: []rules.SecGroupRule{
+						{
+							ID:             "test-rule-id",
+							Direction:      "ingress",
+							PortRangeMax:   8888,
+							PortRangeMin:   8888,
+							RemoteIPPrefix: "192.0.2.0/24",
+							EtherType:      "IPv4",
+							Protocol:       "tcp",
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockCtrl = gomock.NewController(t)
+			defer mockCtrl.Finish()
+			osClient := tt.before(mockCtrl)
+			r := &SecurityGroupReconciler{
+				Client:   tt.fields.Client,
+				Log:      ctrl.Log.WithName("controllers").WithName("SecurityGroup"),
+				Scheme:   tt.fields.Scheme,
+				osClient: osClient,
+			}
+			if err := r.deleteRule(tt.args.instance, tt.args.sg); (err != nil) != tt.wantErr {
+				t.Errorf("deleteRule() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
