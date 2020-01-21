@@ -3,19 +3,26 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"github.com/go-logr/logr"
 	"github.com/golang/mock/gomock"
+	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/groups"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	openstackv1beta1 "github.com/takaishi/openstack-sg-controller/api/v1beta1"
+	"github.com/takaishi/openstack-sg-controller/internal"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"log"
 	"os"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sync"
+	"testing"
 	"time"
 )
 
@@ -148,3 +155,97 @@ var _ = Describe("SecurityGroup Controller", func() {
 		})
 	})
 })
+
+func TestSecurityGroupReconciler_attachSG(t *testing.T) {
+	type fields struct {
+		Client   client.Client
+		Log      logr.Logger
+		Scheme   *runtime.Scheme
+		osClient internal.OpenStackClientInterface
+	}
+	type args struct {
+		instance *openstackv1beta1.SecurityGroup
+		sg       *groups.SecGroup
+		nodes    []v1.Node
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		before  func(controller *gomock.Controller) internal.OpenStackClientInterface
+		wantErr bool
+	}{
+		{
+			name: "server does'nt has security group",
+			before: func(controller *gomock.Controller) internal.OpenStackClientInterface {
+				osClient := internal.NewMockOpenStackClientInterface(controller)
+				osClient.EXPECT().ServerHasSG("aaa", "test-sg").Return(false, nil)
+				osClient.EXPECT().AttachSG("aaa", "test-sg").Return(nil)
+				return osClient
+			},
+			args: args{
+				instance: &openstackv1beta1.SecurityGroup{},
+				sg:       &groups.SecGroup{Name: "test-sg"},
+				nodes:    []v1.Node{{Status: v1.NodeStatus{NodeInfo: v1.NodeSystemInfo{SystemUUID: "aaa"}}}},
+			},
+			wantErr: false,
+		},
+		{
+			name: "server has already security group",
+			before: func(controller *gomock.Controller) internal.OpenStackClientInterface {
+				osClient := internal.NewMockOpenStackClientInterface(controller)
+				osClient.EXPECT().ServerHasSG("aaa", "test-sg").Return(true, nil)
+				return osClient
+			},
+			args: args{
+				instance: &openstackv1beta1.SecurityGroup{},
+				sg:       &groups.SecGroup{Name: "test-sg"},
+				nodes:    []v1.Node{{Status: v1.NodeStatus{NodeInfo: v1.NodeSystemInfo{SystemUUID: "aaa"}}}},
+			},
+			wantErr: false,
+		},
+		{
+			name: "ServerhasSG return error",
+			before: func(controller *gomock.Controller) internal.OpenStackClientInterface {
+				osClient := internal.NewMockOpenStackClientInterface(controller)
+				osClient.EXPECT().ServerHasSG("aaa", "test-sg").Return(false, fmt.Errorf("error"))
+				return osClient
+			},
+			args: args{
+				instance: &openstackv1beta1.SecurityGroup{},
+				sg:       &groups.SecGroup{Name: "test-sg"},
+				nodes:    []v1.Node{{Status: v1.NodeStatus{NodeInfo: v1.NodeSystemInfo{SystemUUID: "aaa"}}}},
+			},
+			wantErr: true,
+		},
+		{
+			name: "AttachSG return error",
+			before: func(controller *gomock.Controller) internal.OpenStackClientInterface {
+				osClient := internal.NewMockOpenStackClientInterface(controller)
+				osClient.EXPECT().ServerHasSG("aaa", "test-sg").Return(false, nil)
+				osClient.EXPECT().AttachSG("aaa", "test-sg").Return(fmt.Errorf("error"))
+				return osClient
+			},
+			args: args{
+				instance: &openstackv1beta1.SecurityGroup{},
+				sg:       &groups.SecGroup{Name: "test-sg"},
+				nodes:    []v1.Node{{Status: v1.NodeStatus{NodeInfo: v1.NodeSystemInfo{SystemUUID: "aaa"}}}},
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockCtrl = gomock.NewController(t)
+			defer mockCtrl.Finish()
+			osClient := tt.before(mockCtrl)
+			r := &SecurityGroupReconciler{
+				Log:      ctrl.Log.WithName("controllers").WithName("SecurityGroup"),
+				osClient: osClient,
+			}
+			if err := r.attachSG(tt.args.instance, tt.args.sg, tt.args.nodes); (err != nil) != tt.wantErr {
+				t.Errorf("attachSG() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
