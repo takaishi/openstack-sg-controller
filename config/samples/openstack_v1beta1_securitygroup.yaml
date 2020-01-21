@@ -1,8 +1,6 @@
 apiVersion: openstack.repl.info/v1beta1
 kind: SecurityGroup
 metadata:
-  labels:
-    controller-tools.k8s.io: "1.0"
   name: securitygroup-sample
 spec:
   # Add fields here

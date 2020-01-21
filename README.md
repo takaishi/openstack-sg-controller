@@ -5,7 +5,6 @@
 ## Install
 
 ```
-
 $ kubectl create namespace openstack-sg-controller-system
 $ kubectl -n openstack-sg-controller-system create secret generic openstack-sg-controller \
   --from-literal=os_auth_url='https://your-endpoint/auth/v3' \
@@ -46,6 +45,3 @@ Deploy to Kubernetes:
 ```
 $ make deploy
 ```
-
-
-
