@@ -308,6 +308,7 @@ func (r *SecurityGroupReconciler) getNodes(instance *openstackv1beta1.SecurityGr
 	return nodes.Items, nil
 }
 
+// detachSG detaches securityGroup from node when node's label are'nt match.
 func (r *SecurityGroupReconciler) detachSG(instance *openstackv1beta1.SecurityGroup, sg *groups.SecGroup, nodes []v1.Node) error {
 	existsNodeIDs := []string{}
 	for _, node := range nodes {

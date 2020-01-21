@@ -249,3 +249,84 @@ func TestSecurityGroupReconciler_attachSG(t *testing.T) {
 		})
 	}
 }
+
+func TestSecurityGroupReconciler_detachSG(t *testing.T) {
+	type fields struct {
+		Client   client.Client
+		Log      logr.Logger
+		Scheme   *runtime.Scheme
+		osClient internal.OpenStackClientInterface
+	}
+	type args struct {
+		instance *openstackv1beta1.SecurityGroup
+		sg       *groups.SecGroup
+		nodes    []v1.Node
+	}
+	tests := []struct {
+		name       string
+		fields     fields
+		args       args
+		before     func(controller *gomock.Controller) internal.OpenStackClientInterface
+		wantErr    bool
+		wantErrMsg string
+	}{
+		{
+			name: "server has security group",
+			before: func(controller *gomock.Controller) internal.OpenStackClientInterface {
+				osClient := internal.NewMockOpenStackClientInterface(controller)
+				osClient.EXPECT().DetachSG("aaa", "test-sg").Return(nil)
+				return osClient
+			},
+			args: args{
+				instance: &openstackv1beta1.SecurityGroup{
+					Status: openstackv1beta1.SecurityGroupStatus{
+						Nodes: []string{"aaa"},
+					},
+				},
+				sg:    &groups.SecGroup{Name: "test-sg"},
+				nodes: []v1.Node{{Status: v1.NodeStatus{NodeInfo: v1.NodeSystemInfo{SystemUUID: "bbb"}}}},
+			},
+			wantErr: false,
+		},
+		{
+			name: "DetachSG return error",
+			before: func(controller *gomock.Controller) internal.OpenStackClientInterface {
+				osClient := internal.NewMockOpenStackClientInterface(controller)
+				osClient.EXPECT().DetachSG("aaa", "test-sg").Return(fmt.Errorf("DetachSG failed."))
+				return osClient
+			},
+			args: args{
+				instance: &openstackv1beta1.SecurityGroup{
+					Status: openstackv1beta1.SecurityGroupStatus{
+						Nodes: []string{"aaa"},
+					},
+				},
+				sg:    &groups.SecGroup{Name: "test-sg"},
+				nodes: []v1.Node{{Status: v1.NodeStatus{NodeInfo: v1.NodeSystemInfo{SystemUUID: "bbb"}}}},
+			},
+			wantErr:    true,
+			wantErrMsg: "DetachSG failed.",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockCtrl = gomock.NewController(t)
+			defer mockCtrl.Finish()
+			r := &SecurityGroupReconciler{
+				Client:   tt.fields.Client,
+				Log:      ctrl.Log.WithName("controllers").WithName("SecurityGroup"),
+				Scheme:   tt.fields.Scheme,
+				osClient: tt.before(mockCtrl),
+			}
+
+			err := r.detachSG(tt.args.instance, tt.args.sg, tt.args.nodes)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("detachSG() error = %v, wantErr %v", err, tt.wantErr)
+			}
+
+			if tt.wantErr && err.Error() != tt.wantErrMsg {
+				t.Errorf("detachSG() error = %v, wantErr %v", err, tt.wantErrMsg)
+			}
+		})
+	}
+}
