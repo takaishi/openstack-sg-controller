@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"github.com/go-logr/logr"
 	"github.com/golang/mock/gomock"
+	"github.com/gophercloud/gophercloud"
+	"github.com/gophercloud/gophercloud/openstack/identity/v3/projects"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/groups"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -17,6 +19,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"log"
 	"os"
+	"reflect"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -326,6 +329,136 @@ func TestSecurityGroupReconciler_detachSG(t *testing.T) {
 
 			if tt.wantErr && err.Error() != tt.wantErrMsg {
 				t.Errorf("detachSG() error = %v, wantErr %v", err, tt.wantErrMsg)
+			}
+		})
+	}
+}
+
+func TestSecurityGroupReconciler_ensureSG(t *testing.T) {
+	type fields struct {
+		Client   client.Client
+		Log      logr.Logger
+		Scheme   *runtime.Scheme
+		osClient internal.OpenStackClientInterface
+	}
+	type args struct {
+		instance *openstackv1beta1.SecurityGroup
+		tenant   projects.Project
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		before  func(controller *gomock.Controller) internal.OpenStackClientInterface
+		want    *groups.SecGroup
+		wantErr bool
+	}{
+		{
+			name: "security group does not exist.",
+			before: func(controller *gomock.Controller) internal.OpenStackClientInterface {
+				sg := &groups.SecGroup{
+					ID:   "test-secgroup-id",
+					Name: "test-secgroup",
+				}
+				osClient := internal.NewMockOpenStackClientInterface(controller)
+				osClient.EXPECT().GetSecurityGroup("test-sg-id").Return(nil, gophercloud.ErrDefault404{})
+				osClient.EXPECT().CreateSecurityGroup("test-sg", "", "test-tenant-id").Return(sg, nil)
+				return osClient
+			},
+			args: args{
+				instance: &openstackv1beta1.SecurityGroup{
+					Spec: openstackv1beta1.SecurityGroupSpec{
+						Name:   "test-sg",
+						Tenant: "aaa",
+					},
+					Status: openstackv1beta1.SecurityGroupStatus{
+						ID: "test-sg-id",
+					},
+				},
+				tenant: projects.Project{
+					ID: "test-tenant-id",
+				},
+			},
+			wantErr: false,
+			want: &groups.SecGroup{
+				ID:   "test-secgroup-id",
+				Name: "test-secgroup",
+			},
+		},
+		{
+			name: "security group already exists.",
+			before: func(controller *gomock.Controller) internal.OpenStackClientInterface {
+				sg := &groups.SecGroup{
+					ID:   "test-secgroup-id",
+					Name: "test-secgroup",
+				}
+				osClient := internal.NewMockOpenStackClientInterface(controller)
+				osClient.EXPECT().GetSecurityGroup("test-sg-id").Return(sg, nil)
+				return osClient
+			},
+			args: args{
+				instance: &openstackv1beta1.SecurityGroup{
+					Spec: openstackv1beta1.SecurityGroupSpec{
+						Name:   "test-sg",
+						Tenant: "aaa",
+					},
+					Status: openstackv1beta1.SecurityGroupStatus{
+						ID: "test-sg-id",
+					},
+				},
+				tenant: projects.Project{
+					ID: "test-tenant-id",
+				},
+			},
+			wantErr: false,
+			want: &groups.SecGroup{
+				ID:   "test-secgroup-id",
+				Name: "test-secgroup",
+			},
+		},
+		{
+			name: "CreateSecurityGroup return error.",
+			before: func(controller *gomock.Controller) internal.OpenStackClientInterface {
+				osClient := internal.NewMockOpenStackClientInterface(controller)
+				osClient.EXPECT().GetSecurityGroup("test-sg-id").Return(nil, gophercloud.ErrDefault404{})
+
+				osClient.EXPECT().CreateSecurityGroup("test-sg", "", "test-tenant-id").Return(nil, fmt.Errorf("error"))
+				return osClient
+			},
+			args: args{
+				instance: &openstackv1beta1.SecurityGroup{
+					Spec: openstackv1beta1.SecurityGroupSpec{
+						Name:   "test-sg",
+						Tenant: "aaa",
+					},
+					Status: openstackv1beta1.SecurityGroupStatus{
+						ID: "test-sg-id",
+					},
+				},
+				tenant: projects.Project{
+					ID: "test-tenant-id",
+				},
+			},
+			wantErr: true,
+			want:    nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockCtrl = gomock.NewController(t)
+			defer mockCtrl.Finish()
+			osClient := tt.before(mockCtrl)
+			r := &SecurityGroupReconciler{
+				Log:      ctrl.Log.WithName("controllers").WithName("SecurityGroup"),
+				osClient: osClient,
+			}
+			got, err := r.ensureSG(tt.args.instance, tt.args.tenant)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ensureSG() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("ensureSG() got = %v, want %v", got, tt.want)
 			}
 		})
 	}
