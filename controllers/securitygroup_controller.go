@@ -50,61 +50,6 @@ type SecurityGroupReconciler struct {
 	osClient internal.OpenStackClientInterface
 }
 
-func (r *SecurityGroupReconciler) deleteExternalDependency(instance *openstackv1beta1.SecurityGroup) error {
-	r.Log.Info("Info", "deleting the external dependencies", instance.Status.Name)
-
-	sg, err := r.osClient.GetSecurityGroup(instance.Status.ID)
-	if err != nil {
-		_, notfound := err.(gophercloud.ErrDefault404)
-		if notfound {
-			r.Log.Info("Info", "already delete security group", instance.Status.Name)
-			return nil
-		}
-		return err
-	}
-
-	labelSelector := []string{}
-	if hasKey(instance.Spec.NodeSelector, "role") {
-		labelSelector = append(labelSelector, fmt.Sprintf("node-role.kubernetes.io/%s", instance.Spec.NodeSelector["role"]))
-	}
-	var nodes v1.NodeList
-	ls, err := convertLabelSelectorToLabelsSelector(strings.Join(labelSelector, ","))
-	if err != nil {
-		return err
-	}
-
-	listOpts := client.ListOptions{
-		LabelSelector: ls,
-	}
-	err = r.List(context.Background(), &nodes, &listOpts)
-	if err != nil {
-		r.Log.Info("Error", "Failed to NodeList", err.Error())
-		return err
-	}
-
-	for _, node := range nodes.Items {
-		id := node.Status.NodeInfo.SystemUUID
-		hasSg, err := r.osClient.ServerHasSG(strings.ToLower(id), instance.Status.Name)
-		if err != nil {
-			r.Log.Info("Error", "Failed to ServerHasSG", err.Error())
-			return err
-		}
-
-		if hasSg {
-			r.Log.Info("Call: DetachSG", "id", strings.ToLower(id), "instance.Status.Name", instance.Status.Name)
-			r.osClient.DetachSG(strings.ToLower(id), instance.Status.Name)
-		}
-	}
-
-	r.Log.Info("Call: DeleteSecurityGroup", "sg.ID", sg.ID)
-	err = r.osClient.DeleteSecurityGroup(sg.ID)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // +kubebuilder:rbac:groups=openstack.repl.info,resources=securitygroups,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=openstack.repl.info,resources=securitygroups/status,verbs=get;update;patch
 
@@ -200,12 +145,59 @@ func (r *SecurityGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func convertLabelSelectorToLabelsSelector(selector string) (labels.Selector, error) {
-	s, err := metav1.ParseToLabelSelector(selector)
+func (r *SecurityGroupReconciler) deleteExternalDependency(instance *openstackv1beta1.SecurityGroup) error {
+	r.Log.Info("Info", "deleting the external dependencies", instance.Status.Name)
+
+	sg, err := r.osClient.GetSecurityGroup(instance.Status.ID)
 	if err != nil {
-		return nil, err
+		_, notfound := err.(gophercloud.ErrDefault404)
+		if notfound {
+			r.Log.Info("Info", "already delete security group", instance.Status.Name)
+			return nil
+		}
+		return err
 	}
-	return metav1.LabelSelectorAsSelector(s)
+
+	labelSelector := []string{}
+	if hasKey(instance.Spec.NodeSelector, "role") {
+		labelSelector = append(labelSelector, fmt.Sprintf("node-role.kubernetes.io/%s", instance.Spec.NodeSelector["role"]))
+	}
+	var nodes v1.NodeList
+	ls, err := convertLabelSelectorToLabelsSelector(strings.Join(labelSelector, ","))
+	if err != nil {
+		return err
+	}
+
+	listOpts := client.ListOptions{
+		LabelSelector: ls,
+	}
+	err = r.List(context.Background(), &nodes, &listOpts)
+	if err != nil {
+		r.Log.Info("Error", "Failed to NodeList", err.Error())
+		return err
+	}
+
+	for _, node := range nodes.Items {
+		id := node.Status.NodeInfo.SystemUUID
+		hasSg, err := r.osClient.ServerHasSG(strings.ToLower(id), instance.Status.Name)
+		if err != nil {
+			r.Log.Info("Error", "Failed to ServerHasSG", err.Error())
+			return err
+		}
+
+		if hasSg {
+			r.Log.Info("Call: DetachSG", "id", strings.ToLower(id), "instance.Status.Name", instance.Status.Name)
+			r.osClient.DetachSG(strings.ToLower(id), instance.Status.Name)
+		}
+	}
+
+	r.Log.Info("Call: DeleteSecurityGroup", "sg.ID", sg.ID)
+	err = r.osClient.DeleteSecurityGroup(sg.ID)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (r *SecurityGroupReconciler) ensureSG(instance *openstackv1beta1.SecurityGroup, tenant projects.Project) (*groups.SecGroup, error) {
@@ -308,6 +300,7 @@ func (r *SecurityGroupReconciler) getNodes(instance *openstackv1beta1.SecurityGr
 	return nodes.Items, nil
 }
 
+// detachSG detaches securityGroup from node when node's label are'nt match.
 func (r *SecurityGroupReconciler) detachSG(instance *openstackv1beta1.SecurityGroup, sg *groups.SecGroup, nodes []v1.Node) error {
 	existsNodeIDs := []string{}
 	for _, node := range nodes {
@@ -372,6 +365,14 @@ func (r *SecurityGroupReconciler) attachSG(instance *openstackv1beta1.SecurityGr
 	}
 
 	return nil
+}
+
+func convertLabelSelectorToLabelsSelector(selector string) (labels.Selector, error) {
+	s, err := metav1.ParseToLabelSelector(selector)
+	if err != nil {
+		return nil, err
+	}
+	return metav1.LabelSelectorAsSelector(s)
 }
 
 func labelSelector(instance *openstackv1beta1.SecurityGroup) string {
