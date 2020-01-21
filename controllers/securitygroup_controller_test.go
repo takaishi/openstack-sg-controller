@@ -443,6 +443,30 @@ func TestSecurityGroupReconciler_ensureSG(t *testing.T) {
 			wantErr: true,
 			want:    nil,
 		},
+		{
+			name: "GetSecurityGroup return error (not 404).",
+			before: func(controller *gomock.Controller) internal.OpenStackClientInterface {
+				osClient := internal.NewMockOpenStackClientInterface(controller)
+				osClient.EXPECT().GetSecurityGroup("test-sg-id").Return(nil, fmt.Errorf("error"))
+				return osClient
+			},
+			args: args{
+				instance: &openstackv1beta1.SecurityGroup{
+					Spec: openstackv1beta1.SecurityGroupSpec{
+						Name:   "test-sg",
+						Tenant: "aaa",
+					},
+					Status: openstackv1beta1.SecurityGroupStatus{
+						ID: "test-sg-id",
+					},
+				},
+				tenant: projects.Project{
+					ID: "test-tenant-id",
+				},
+			},
+			wantErr: true,
+			want:    nil,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
