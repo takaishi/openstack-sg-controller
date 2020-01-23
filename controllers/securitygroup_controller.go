@@ -396,9 +396,3 @@ func removeString(slice []string, s string) (result []string) {
 	}
 	return
 }
-
-func hasKey(dict map[string]string, key string) bool {
-	_, ok := dict[key]
-
-	return ok
-}
