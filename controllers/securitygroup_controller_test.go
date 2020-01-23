@@ -3,6 +3,13 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"log"
+	"os"
+	"reflect"
+	"sync"
+	"testing"
+	"time"
+
 	"github.com/go-logr/logr"
 	"github.com/golang/mock/gomock"
 	"github.com/gophercloud/gophercloud"
@@ -18,16 +25,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
-	"log"
-	"os"
-	"reflect"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sync"
-	"testing"
-	"time"
 )
 
 const timeout = time.Second * 5
@@ -799,6 +800,240 @@ func TestSecurityGroupReconciler_deleteRule(t *testing.T) {
 			}
 			if err := r.deleteRule(tt.args.instance, tt.args.sg); (err != nil) != tt.wantErr {
 				t.Errorf("deleteRule() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestSecurityGroupReconciler_deleteExternalDependency(t *testing.T) {
+	type fields struct {
+		Client   client.Client
+		Log      logr.Logger
+		Scheme   *runtime.Scheme
+		osClient internal.OpenStackClientInterface
+	}
+	type args struct {
+		instance *openstackv1beta1.SecurityGroup
+		nodes    []v1.Node
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		before  func(controller *gomock.Controller) internal.OpenStackClientInterface
+		args    args
+		wantErr bool
+	}{
+		{
+			name: "normal scenarios: delete SecurityGroups",
+			before: func(controller *gomock.Controller) internal.OpenStackClientInterface {
+				osClient := internal.NewMockOpenStackClientInterface(controller)
+				osClient.EXPECT().GetSecurityGroup("test-sg-id").Return(&groups.SecGroup{
+					ID:   "test-sg-id",
+					Name: "test-sg",
+				}, nil)
+				osClient.EXPECT().DeleteSecurityGroup("test-sg-id").Return(nil)
+				return osClient
+			},
+			args: args{
+				instance: &openstackv1beta1.SecurityGroup{
+					Spec: openstackv1beta1.SecurityGroupSpec{
+						Name:   "test-sg",
+						Tenant: "aaa",
+						Rules:  []openstackv1beta1.SecurityGroupRule{},
+					},
+					Status: openstackv1beta1.SecurityGroupStatus{
+						Name: "test-sg",
+						ID:   "test-sg-id",
+					},
+				},
+				nodes: []v1.Node{},
+			},
+			wantErr: false,
+		},
+		{
+			name: "normal scenarios: detach SecurigyGroup from node and delete SecurityGroups",
+			before: func(controller *gomock.Controller) internal.OpenStackClientInterface {
+				osClient := internal.NewMockOpenStackClientInterface(controller)
+				osClient.EXPECT().GetSecurityGroup("test-sg-id").Return(&groups.SecGroup{
+					ID:   "test-sg-id",
+					Name: "test-sg",
+				}, nil)
+				osClient.EXPECT().ServerHasSG("001001001", "test-sg").Return(true, nil)
+				osClient.EXPECT().DetachSG("001001001", "test-sg").Return(nil)
+				osClient.EXPECT().DeleteSecurityGroup("test-sg-id").Return(nil)
+				return osClient
+			},
+			args: args{
+				instance: &openstackv1beta1.SecurityGroup{
+					Spec: openstackv1beta1.SecurityGroupSpec{
+						Name:   "test-sg",
+						Tenant: "aaa",
+						Rules:  []openstackv1beta1.SecurityGroupRule{},
+					},
+					Status: openstackv1beta1.SecurityGroupStatus{
+						Name: "test-sg",
+						ID:   "test-sg-id",
+					},
+				},
+				nodes: []v1.Node{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "node001",
+							Labels: map[string]string{
+								"node-role.kubernetes.io/node": "true",
+							},
+						},
+						Status: v1.NodeStatus{
+							NodeInfo: v1.NodeSystemInfo{
+								SystemUUID: "001001001",
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "GetSecurityGroup return notfound error",
+			before: func(controller *gomock.Controller) internal.OpenStackClientInterface {
+				osClient := internal.NewMockOpenStackClientInterface(controller)
+				osClient.EXPECT().GetSecurityGroup("test-sg-id").Return(nil, gophercloud.ErrDefault404{})
+				return osClient
+			},
+			args: args{
+				instance: &openstackv1beta1.SecurityGroup{
+					Spec: openstackv1beta1.SecurityGroupSpec{
+						Name:   "test-sg",
+						Tenant: "aaa",
+						Rules:  []openstackv1beta1.SecurityGroupRule{},
+					},
+					Status: openstackv1beta1.SecurityGroupStatus{
+						ID: "test-sg-id",
+					},
+				},
+				nodes: []v1.Node{},
+			},
+			wantErr: false,
+		},
+		{
+			name: "GetSecurityGroup return error",
+			before: func(controller *gomock.Controller) internal.OpenStackClientInterface {
+				osClient := internal.NewMockOpenStackClientInterface(controller)
+				osClient.EXPECT().GetSecurityGroup("test-sg-id").Return(nil, fmt.Errorf("error"))
+				return osClient
+			},
+			args: args{
+				instance: &openstackv1beta1.SecurityGroup{
+					Spec: openstackv1beta1.SecurityGroupSpec{
+						Name:   "test-sg",
+						Tenant: "aaa",
+						Rules:  []openstackv1beta1.SecurityGroupRule{},
+					},
+					Status: openstackv1beta1.SecurityGroupStatus{
+						ID: "test-sg-id",
+					},
+				},
+				nodes: []v1.Node{},
+			},
+			wantErr: true,
+		},
+		{
+			name: "ServerHasSG return error",
+			before: func(controller *gomock.Controller) internal.OpenStackClientInterface {
+				osClient := internal.NewMockOpenStackClientInterface(controller)
+				osClient.EXPECT().GetSecurityGroup("test-sg-id").Return(&groups.SecGroup{
+					ID:   "test-sg-id",
+					Name: "test-sg",
+				}, nil)
+				osClient.EXPECT().ServerHasSG("001001001", "test-sg").Return(false, fmt.Errorf("error"))
+				return osClient
+			},
+			args: args{
+				instance: &openstackv1beta1.SecurityGroup{
+					Spec: openstackv1beta1.SecurityGroupSpec{
+						Name:   "test-sg",
+						Tenant: "aaa",
+						Rules:  []openstackv1beta1.SecurityGroupRule{},
+					},
+					Status: openstackv1beta1.SecurityGroupStatus{
+						Name: "test-sg",
+						ID:   "test-sg-id",
+					},
+				},
+				nodes: []v1.Node{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "node001",
+							Labels: map[string]string{
+								"node-role.kubernetes.io/node": "true",
+							},
+						},
+						Status: v1.NodeStatus{
+							NodeInfo: v1.NodeSystemInfo{
+								SystemUUID: "001001001",
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "abnormal scenarios: DeleteSecurityGroup return error",
+			before: func(controller *gomock.Controller) internal.OpenStackClientInterface {
+				osClient := internal.NewMockOpenStackClientInterface(controller)
+				osClient.EXPECT().GetSecurityGroup("test-sg-id").Return(&groups.SecGroup{
+					ID:   "test-sg-id",
+					Name: "test-sg",
+				}, nil)
+				osClient.EXPECT().ServerHasSG("001001001", "test-sg").Return(true, nil)
+				osClient.EXPECT().DetachSG("001001001", "test-sg").Return(nil)
+				osClient.EXPECT().DeleteSecurityGroup("test-sg-id").Return(fmt.Errorf("error"))
+				return osClient
+			},
+			args: args{
+				instance: &openstackv1beta1.SecurityGroup{
+					Spec: openstackv1beta1.SecurityGroupSpec{
+						Name:   "test-sg",
+						Tenant: "aaa",
+						Rules:  []openstackv1beta1.SecurityGroupRule{},
+					},
+					Status: openstackv1beta1.SecurityGroupStatus{
+						Name: "test-sg",
+						ID:   "test-sg-id",
+					},
+				},
+				nodes: []v1.Node{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "node001",
+							Labels: map[string]string{
+								"node-role.kubernetes.io/node": "true",
+							},
+						},
+						Status: v1.NodeStatus{
+							NodeInfo: v1.NodeSystemInfo{
+								SystemUUID: "001001001",
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockCtrl = gomock.NewController(t)
+			defer mockCtrl.Finish()
+			r := &SecurityGroupReconciler{
+				Client:   tt.fields.Client,
+				Log:      ctrl.Log.WithName("controllers").WithName("SecurityGroup"),
+				Scheme:   tt.fields.Scheme,
+				osClient: tt.before(mockCtrl),
+			}
+			if err := r.deleteExternalDependency(tt.args.instance, tt.args.nodes); (err != nil) != tt.wantErr {
+				t.Errorf("deleteExternalDependency() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}
