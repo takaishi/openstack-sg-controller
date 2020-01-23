@@ -23,6 +23,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/identity/v3/projects"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/groups"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/rules"
+	"github.com/pkg/errors"
 	"github.com/takaishi/openstack-sg-controller/internal"
 	v1 "k8s.io/api/core/v1"
 	errors_ "k8s.io/apimachinery/pkg/api/errors"
@@ -152,17 +153,17 @@ func (r *SecurityGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func (r *SecurityGroupReconciler) deleteExternalDependency(instance *openstackv1beta1.SecurityGroup, nodes []v1.Node) error {
-	r.Log.Info("Info", "deleting the external dependencies", instance.Status.Name)
+	r.Log.Info("deleting the external dependencies", "name", instance.Status.Name)
 
-	r.Log.Info("Call GetSecurityGroup", "instance.Statu.ID", instance.Status.ID)
+	r.Log.Info("Call GetSecurityGroup", "instance.Status.ID", instance.Status.ID)
 	sg, err := r.osClient.GetSecurityGroup(instance.Status.ID)
 	if err != nil {
 		_, notfound := err.(gophercloud.ErrDefault404)
 		if notfound {
-			r.Log.Info("Info", "already delete security group", instance.Status.Name)
+			r.Log.Info("The SecurityGroup has deleted already.", "name", instance.Status.Name)
 			return nil
 		}
-		return err
+		return errors.Wrap(err, "GetSecurityGroup failed")
 	}
 
 	for _, node := range nodes {
@@ -170,8 +171,7 @@ func (r *SecurityGroupReconciler) deleteExternalDependency(instance *openstackv1
 		r.Log.Info("Call ServerHasSG", "id", id, "instance.Status.Name", instance.Status.Name)
 		hasSg, err := r.osClient.ServerHasSG(id, instance.Status.Name)
 		if err != nil {
-			r.Log.Info("Error", "Failed to ServerHasSG", err.Error())
-			return err
+			return errors.Wrap(err, "ServerHasSG failed")
 		}
 
 		if hasSg {
@@ -181,7 +181,11 @@ func (r *SecurityGroupReconciler) deleteExternalDependency(instance *openstackv1
 	}
 
 	r.Log.Info("Call: DeleteSecurityGroup", "sg.ID", sg.ID)
-	return r.osClient.DeleteSecurityGroup(sg.ID)
+	err = r.osClient.DeleteSecurityGroup(sg.ID)
+	if err != nil {
+		return errors.Wrap(err, "DeleteSecurityGroup failed")
+	}
+	return nil
 }
 
 func (r *SecurityGroupReconciler) ensureSG(instance *openstackv1beta1.SecurityGroup, tenant projects.Project) (*groups.SecGroup, error) {
