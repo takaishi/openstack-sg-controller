@@ -181,12 +181,7 @@ func (r *SecurityGroupReconciler) deleteExternalDependency(instance *openstackv1
 	}
 
 	r.Log.Info("Call: DeleteSecurityGroup", "sg.ID", sg.ID)
-	err = r.osClient.DeleteSecurityGroup(sg.ID)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return r.osClient.DeleteSecurityGroup(sg.ID)
 }
 
 func (r *SecurityGroupReconciler) ensureSG(instance *openstackv1beta1.SecurityGroup, tenant projects.Project) (*groups.SecGroup, error) {
