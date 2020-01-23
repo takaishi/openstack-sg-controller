@@ -78,7 +78,13 @@ func (r *SecurityGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 			return r.setFinalizer(instance)
 		}
 	} else {
-		return r.runFinalizer(instance)
+		nodes, err := r.getNodes(instance)
+		if err != nil {
+			r.Log.Info("Error", "Failed to get Nodes", err.Error())
+			return reconcile.Result{}, err
+		}
+
+		return r.runFinalizer(instance, nodes)
 	}
 
 	r.Log.Info("Debug", "called", "GetTenantByName", "tenant", os.Getenv("OS_TENANT_NAME"))
@@ -145,9 +151,10 @@ func (r *SecurityGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func (r *SecurityGroupReconciler) deleteExternalDependency(instance *openstackv1beta1.SecurityGroup) error {
+func (r *SecurityGroupReconciler) deleteExternalDependency(instance *openstackv1beta1.SecurityGroup, nodes []v1.Node) error {
 	r.Log.Info("Info", "deleting the external dependencies", instance.Status.Name)
 
+	r.Log.Info("Call GetSecurityGroup", "instance.Statu.ID", instance.Status.ID)
 	sg, err := r.osClient.GetSecurityGroup(instance.Status.ID)
 	if err != nil {
 		_, notfound := err.(gophercloud.ErrDefault404)
@@ -158,27 +165,9 @@ func (r *SecurityGroupReconciler) deleteExternalDependency(instance *openstackv1
 		return err
 	}
 
-	labelSelector := []string{}
-	if hasKey(instance.Spec.NodeSelector, "role") {
-		labelSelector = append(labelSelector, fmt.Sprintf("node-role.kubernetes.io/%s", instance.Spec.NodeSelector["role"]))
-	}
-	var nodes v1.NodeList
-	ls, err := convertLabelSelectorToLabelsSelector(strings.Join(labelSelector, ","))
-	if err != nil {
-		return err
-	}
-
-	listOpts := client.ListOptions{
-		LabelSelector: ls,
-	}
-	err = r.List(context.Background(), &nodes, &listOpts)
-	if err != nil {
-		r.Log.Info("Error", "Failed to NodeList", err.Error())
-		return err
-	}
-
-	for _, node := range nodes.Items {
+	for _, node := range nodes {
 		id := node.Status.NodeInfo.SystemUUID
+		r.Log.Info("Call ServerHasSG", "id", id, "instance.Status.Name", instance.Status.Name)
 		hasSg, err := r.osClient.ServerHasSG(strings.ToLower(id), instance.Status.Name)
 		if err != nil {
 			r.Log.Info("Error", "Failed to ServerHasSG", err.Error())
@@ -201,6 +190,7 @@ func (r *SecurityGroupReconciler) deleteExternalDependency(instance *openstackv1
 }
 
 func (r *SecurityGroupReconciler) ensureSG(instance *openstackv1beta1.SecurityGroup, tenant projects.Project) (*groups.SecGroup, error) {
+	r.Log.Info("Call GetSecurityGroup", "instance.Statu.ID", instance.Status.ID)
 	sg, err := r.osClient.GetSecurityGroup(instance.Status.ID)
 	if err != nil {
 		switch err.(type) {
@@ -266,9 +256,9 @@ func (r *SecurityGroupReconciler) setFinalizer(sg *openstackv1beta1.SecurityGrou
 	return reconcile.Result{}, nil
 }
 
-func (r *SecurityGroupReconciler) runFinalizer(sg *openstackv1beta1.SecurityGroup) (reconcile.Result, error) {
+func (r *SecurityGroupReconciler) runFinalizer(sg *openstackv1beta1.SecurityGroup, nodes []v1.Node) (reconcile.Result, error) {
 	if containsString(sg.ObjectMeta.Finalizers, finalizerName) {
-		if err := r.deleteExternalDependency(sg); err != nil {
+		if err := r.deleteExternalDependency(sg, nodes); err != nil {
 			return reconcile.Result{}, err
 		}
 
@@ -348,6 +338,7 @@ func (r *SecurityGroupReconciler) deleteRule(instance *openstackv1beta1.Security
 func (r *SecurityGroupReconciler) attachSG(instance *openstackv1beta1.SecurityGroup, sg *groups.SecGroup, nodes []v1.Node) error {
 	for _, node := range nodes {
 		id := node.Status.NodeInfo.SystemUUID
+		r.Log.Info("Call ServerHasSG", "id", id, "sg.Name", sg.Name)
 		hasSg, err := r.osClient.ServerHasSG(strings.ToLower(id), sg.Name)
 		if err != nil {
 			r.Log.Info("Error", "Failed to ServerHasSG", err.Error())
@@ -355,7 +346,7 @@ func (r *SecurityGroupReconciler) attachSG(instance *openstackv1beta1.SecurityGr
 		}
 
 		if !hasSg {
-			r.Log.Info("Info", "Attach SG to Server", strings.ToLower(id))
+			r.Log.Info("Call AttachSG", "id", id, "sg.Name", sg.Name)
 			if err = r.osClient.AttachSG(strings.ToLower(id), sg.Name); err != nil {
 				r.Log.Info("Debug", "failed to attach sg", err.Error())
 				return err
