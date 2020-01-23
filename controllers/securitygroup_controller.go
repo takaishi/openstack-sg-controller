@@ -166,17 +166,17 @@ func (r *SecurityGroupReconciler) deleteExternalDependency(instance *openstackv1
 	}
 
 	for _, node := range nodes {
-		id := node.Status.NodeInfo.SystemUUID
+		id := strings.ToLower(node.Status.NodeInfo.SystemUUID)
 		r.Log.Info("Call ServerHasSG", "id", id, "instance.Status.Name", instance.Status.Name)
-		hasSg, err := r.osClient.ServerHasSG(strings.ToLower(id), instance.Status.Name)
+		hasSg, err := r.osClient.ServerHasSG(id, instance.Status.Name)
 		if err != nil {
 			r.Log.Info("Error", "Failed to ServerHasSG", err.Error())
 			return err
 		}
 
 		if hasSg {
-			r.Log.Info("Call: DetachSG", "id", strings.ToLower(id), "instance.Status.Name", instance.Status.Name)
-			r.osClient.DetachSG(strings.ToLower(id), instance.Status.Name)
+			r.Log.Info("Call: DetachSG", "id", id, "instance.Status.Name", instance.Status.Name)
+			r.osClient.DetachSG(id, instance.Status.Name)
 		}
 	}
 
