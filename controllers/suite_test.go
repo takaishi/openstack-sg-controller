@@ -17,15 +17,19 @@ limitations under the License.
 package controllers
 
 import (
+	"context"
 	"fmt"
+	"path/filepath"
+	"testing"
+
 	"github.com/golang/mock/gomock"
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/identity/v3/projects"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/groups"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/rules"
 	"github.com/takaishi/openstack-sg-controller/internal"
-	"path/filepath"
-	"testing"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -84,6 +88,39 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
 
+	nodes := []v1.Node{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "node001",
+				Labels: map[string]string{
+					"node-role.kubernetes.io/node": "true",
+				},
+			},
+			Status: v1.NodeStatus{
+				NodeInfo: v1.NodeSystemInfo{
+					SystemUUID: "001001001",
+				},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "node002",
+				Labels: map[string]string{
+					"node-role.kubernetes.io/test": "true",
+				},
+			},
+			Status: v1.NodeStatus{
+				NodeInfo: v1.NodeSystemInfo{
+					SystemUUID: "002002002",
+				},
+			},
+		},
+	}
+	for _, node := range nodes {
+		err = k8sClient.Create(context.Background(), &node)
+		Expect(err).ToNot(HaveOccurred())
+	}
+
 	close(done)
 }, 60)
 
@@ -98,7 +135,9 @@ func newOpenStackClientMock(controller *gomock.Controller) internal.OpenStackCli
 	tenant := projects.Project{ID: "test-tenant-id", Name: "test-tenant"}
 	sg := groups.SecGroup{ID: "test-sg-id", Name: "test-sg-abcde"}
 	osClient := internal.NewMockOpenStackClientInterface(controller)
-	// During create SecurityGroup
+
+	// 1st reconcile: set finalizer
+	// 2nd reconcile: create SecurityGroup and attach to node
 	firstGetTenantByName := osClient.EXPECT().GetTenantByName("test-tenant").Return(tenant, nil)
 	firstGetSecurityGroup := osClient.EXPECT().GetSecurityGroup("").Return(&sg, gophercloud.ErrDefault404{}).After(firstGetTenantByName)
 	CreateSecurityGroup := osClient.EXPECT().CreateSecurityGroup("test-sg", "", "test-tenant-id").Return(&sg, nil).After(firstGetSecurityGroup)
@@ -123,10 +162,18 @@ func newOpenStackClientMock(controller *gomock.Controller) internal.OpenStackCli
 	}
 	firstAddSecurityGroupRule := osClient.EXPECT().AddSecurityGroupRule(createOpts).Return(nil).AnyTimes().After(CreateSecurityGroup)
 	secondGetTenantByName := osClient.EXPECT().GetTenantByName("test-tenant").Return(tenant, nil).After(firstAddSecurityGroupRule)
-	osClient.EXPECT().GetSecurityGroup("test-sg-id").Return(&sg2, nil).After(secondGetTenantByName)
+	secondGetSecurityGroup := osClient.EXPECT().GetSecurityGroup("test-sg-id").Return(&sg2, nil).After(secondGetTenantByName)
 
-	// During delete SecurityGroup
-	osClient.EXPECT().GetSecurityGroup("test-sg-id").Return(&sg2, nil)
+	firstServerHasSG := osClient.EXPECT().ServerHasSG("001001001", "test-sg-abcde").Return(false, nil)
+	osClient.EXPECT().AttachSG("001001001", "test-sg-abcde").Return(nil).After(firstServerHasSG)
+
+	// 3rd reconcile: occurred by updating status.
+	osClient.EXPECT().GetSecurityGroup("test-sg-id").Return(&sg2, nil).After(secondGetSecurityGroup)
+	osClient.EXPECT().ServerHasSG("001001001", "test-sg-abcde").Return(true, nil).After(firstServerHasSG)
+
+	// 4th reconcile: detach from node and delete SecurityGroup
+	osClient.EXPECT().ServerHasSG("001001001", "test-sg-abcde").Return(true, nil).After(firstServerHasSG)
+	osClient.EXPECT().DetachSG("001001001", "test-sg-abcde").Return(nil).After(firstServerHasSG)
 	osClient.EXPECT().DeleteSecurityGroup("test-sg-id").Return(nil)
 
 	return osClient
