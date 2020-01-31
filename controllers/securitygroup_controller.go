@@ -100,8 +100,6 @@ func (r *SecurityGroupReconciler) Reconcile(req ctrl.Request) (_ ctrl.Result, re
 		return reconcile.Result{}, err
 	}
 
-	var sg *groups.SecGroup
-
 	defer func() {
 		if err := r.Status().Update(context.Background(), instance); err != nil {
 			r.Log.Info("Debug", "failed to update sg", err.Error())
@@ -109,8 +107,20 @@ func (r *SecurityGroupReconciler) Reconcile(req ctrl.Request) (_ ctrl.Result, re
 		}
 	}()
 
+	return r.reconcile(instance, tenant, nodes)
+}
+
+func (r *SecurityGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&openstackv1beta1.SecurityGroup{}).
+		Complete(r)
+}
+
+func (r *SecurityGroupReconciler) reconcile(instance *openstackv1beta1.SecurityGroup, tenant projects.Project, nodes []v1.Node) (_ ctrl.Result, reterr error) {
+	var sg *groups.SecGroup
+
 	// Create the SecurityGroup when it's no exists
-	sg, err = r.ensureSG(instance, tenant)
+	sg, err := r.ensureSG(instance, tenant)
 	if err != nil {
 		r.Log.Info("Error", "Failed to ensureSG", err.Error())
 		return reconcile.Result{}, err
@@ -145,13 +155,8 @@ func (r *SecurityGroupReconciler) Reconcile(req ctrl.Request) (_ ctrl.Result, re
 	}
 
 	r.Log.Info("Info: Success reconcile", "sg", instance.Name)
-	return reconcile.Result{}, nil
-}
 
-func (r *SecurityGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&openstackv1beta1.SecurityGroup{}).
-		Complete(r)
+	return reconcile.Result{}, nil
 }
 
 func (r *SecurityGroupReconciler) deleteExternalDependency(instance *openstackv1beta1.SecurityGroup, nodes []v1.Node) error {
