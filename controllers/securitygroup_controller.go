@@ -71,35 +71,13 @@ func (r *SecurityGroupReconciler) Reconcile(req ctrl.Request) (_ ctrl.Result, re
 		return reconcile.Result{}, err
 	}
 
-	r.Log.Info("Info: Start reconcile", "sg", instance.Name)
-	if instance.ObjectMeta.DeletionTimestamp.IsZero() {
-		r.Log.Info("Debug: deletion timestamp is zero")
-		if !containsString(instance.ObjectMeta.Finalizers, finalizerName) {
-			r.Log.Info("Debug: Set Finalizer")
-			return r.setFinalizer(instance)
-		}
-	} else {
-		nodes, err := r.getNodes(instance)
-		if err != nil {
-			r.Log.Info("Error", "Failed to get Nodes", err.Error())
-			return reconcile.Result{}, err
-		}
-
-		return r.runFinalizer(instance, nodes)
-	}
-
-	r.Log.Info("Debug", "called", "GetTenantByName", "tenant", os.Getenv("OS_TENANT_NAME"))
-	tenant, err := r.OpenStackClient.GetTenantByName(os.Getenv("OS_TENANT_NAME"))
-	if err != nil {
-		return reconcile.Result{}, err
-	}
-
 	nodes, err := r.getNodes(instance)
 	if err != nil {
 		r.Log.Info("Error", "Failed to get Nodes", err.Error())
 		return reconcile.Result{}, err
 	}
 
+	// Always attempt to update SecurityGroup status after reconcile.
 	defer func() {
 		if err := r.Status().Update(context.Background(), instance); err != nil {
 			r.Log.Info("Debug", "failed to update sg", err.Error())
@@ -107,7 +85,13 @@ func (r *SecurityGroupReconciler) Reconcile(req ctrl.Request) (_ ctrl.Result, re
 		}
 	}()
 
-	return r.reconcile(instance, tenant, nodes)
+	// Handle deletion reconcile loop
+	if !instance.ObjectMeta.DeletionTimestamp.IsZero() {
+		return r.reconcileDelete(instance, nodes)
+	}
+
+	// Handle normal reconcile loop
+	return r.reconcile(instance, nodes)
 }
 
 func (r *SecurityGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -116,11 +100,26 @@ func (r *SecurityGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func (r *SecurityGroupReconciler) reconcile(instance *openstackv1beta1.SecurityGroup, tenant projects.Project, nodes []v1.Node) (_ ctrl.Result, reterr error) {
+func (r *SecurityGroupReconciler) reconcile(instance *openstackv1beta1.SecurityGroup, nodes []v1.Node) (_ ctrl.Result, reterr error) {
 	var sg *groups.SecGroup
 
+	r.Log.Info("Info: Start reconcile", "sg", instance.Name)
+	if instance.ObjectMeta.DeletionTimestamp.IsZero() {
+		r.Log.Info("Debug: deletion timestamp is zero")
+		if !containsString(instance.ObjectMeta.Finalizers, finalizerName) {
+			r.Log.Info("Debug: Set Finalizer")
+			return r.setFinalizer(instance)
+		}
+	}
+
+	r.Log.Info("Debug", "called", "GetTenantByName", "tenant", os.Getenv("OS_TENANT_NAME"))
+	tenant, err := r.OpenStackClient.GetTenantByName(os.Getenv("OS_TENANT_NAME"))
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
 	// Create the SecurityGroup when it's no exists
-	sg, err := r.ensureSG(instance, tenant)
+	sg, err = r.ensureSG(instance, tenant)
 	if err != nil {
 		r.Log.Info("Error", "Failed to ensureSG", err.Error())
 		return reconcile.Result{}, err
@@ -262,7 +261,7 @@ func (r *SecurityGroupReconciler) setFinalizer(sg *openstackv1beta1.SecurityGrou
 	return reconcile.Result{}, nil
 }
 
-func (r *SecurityGroupReconciler) runFinalizer(sg *openstackv1beta1.SecurityGroup, nodes []v1.Node) (reconcile.Result, error) {
+func (r *SecurityGroupReconciler) reconcileDelete(sg *openstackv1beta1.SecurityGroup, nodes []v1.Node) (reconcile.Result, error) {
 	if containsString(sg.ObjectMeta.Finalizers, finalizerName) {
 		if err := r.deleteExternalDependency(sg, nodes); err != nil {
 			return reconcile.Result{}, err
