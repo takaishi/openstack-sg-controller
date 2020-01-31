@@ -54,7 +54,7 @@ type SecurityGroupReconciler struct {
 // +kubebuilder:rbac:groups=openstack.repl.info,resources=securitygroups,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=openstack.repl.info,resources=securitygroups/status,verbs=get;update;patch
 
-func (r *SecurityGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+func (r *SecurityGroupReconciler) Reconcile(req ctrl.Request) (_ ctrl.Result, reterr error) {
 	_ = context.Background()
 	_ = r.Log.WithValues("securitygroup", req.NamespacedName)
 
@@ -102,6 +102,13 @@ func (r *SecurityGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 
 	var sg *groups.SecGroup
 
+	defer func() {
+		if err := r.Status().Update(context.Background(), instance); err != nil {
+			r.Log.Info("Debug", "failed to update sg", err.Error())
+			reterr = err
+		}
+	}()
+
 	// Create the SecurityGroup when it's no exists
 	sg, err = r.ensureSG(instance, tenant)
 	if err != nil {
@@ -134,11 +141,6 @@ func (r *SecurityGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 	err = r.attachSG(instance, sg, nodes)
 	if err != nil {
 		r.Log.Info("Error", "Failed to attachSG", err.Error())
-		return reconcile.Result{}, err
-	}
-
-	if err := r.Status().Update(context.Background(), instance); err != nil {
-		r.Log.Info("Debug", "failed to update sg", err.Error())
 		return reconcile.Result{}, err
 	}
 
