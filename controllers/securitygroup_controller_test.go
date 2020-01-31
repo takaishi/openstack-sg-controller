@@ -78,9 +78,9 @@ var _ = Describe("SecurityGroup Controller", func() {
 			mockCtrl = gomock.NewController(GinkgoT())
 
 			reconciler, requests = SetupTestReconcile(&SecurityGroupReconciler{
-				Client:   k8sManager.GetClient(),
-				Log:      ctrl.Log.WithName("controllers").WithName("SecretScope"),
-				osClient: newOpenStackClientMock(mockCtrl),
+				Client:          k8sManager.GetClient(),
+				Log:             ctrl.Log.WithName("controllers").WithName("SecretScope"),
+				OpenStackClient: newOpenStackClientMock(mockCtrl),
 			})
 
 			_, err = ctrl.NewControllerManagedBy(k8sManager).
@@ -245,8 +245,8 @@ func TestSecurityGroupReconciler_attachSG(t *testing.T) {
 			defer mockCtrl.Finish()
 			osClient := tt.before(mockCtrl)
 			r := &SecurityGroupReconciler{
-				Log:      ctrl.Log.WithName("controllers").WithName("SecurityGroup"),
-				osClient: osClient,
+				Log:             ctrl.Log.WithName("controllers").WithName("SecurityGroup"),
+				OpenStackClient: osClient,
 			}
 			if err := r.attachSG(tt.args.instance, tt.args.sg, tt.args.nodes); (err != nil) != tt.wantErr {
 				t.Errorf("attachSG() error = %v, wantErr %v", err, tt.wantErr)
@@ -318,10 +318,10 @@ func TestSecurityGroupReconciler_detachSG(t *testing.T) {
 			mockCtrl = gomock.NewController(t)
 			defer mockCtrl.Finish()
 			r := &SecurityGroupReconciler{
-				Client:   tt.fields.Client,
-				Log:      ctrl.Log.WithName("controllers").WithName("SecurityGroup"),
-				Scheme:   tt.fields.Scheme,
-				osClient: tt.before(mockCtrl),
+				Client:          tt.fields.Client,
+				Log:             ctrl.Log.WithName("controllers").WithName("SecurityGroup"),
+				Scheme:          tt.fields.Scheme,
+				OpenStackClient: tt.before(mockCtrl),
 			}
 
 			err := r.detachSG(tt.args.instance, tt.args.sg, tt.args.nodes)
@@ -475,8 +475,8 @@ func TestSecurityGroupReconciler_ensureSG(t *testing.T) {
 			defer mockCtrl.Finish()
 			osClient := tt.before(mockCtrl)
 			r := &SecurityGroupReconciler{
-				Log:      ctrl.Log.WithName("controllers").WithName("SecurityGroup"),
-				osClient: osClient,
+				Log:             ctrl.Log.WithName("controllers").WithName("SecurityGroup"),
+				OpenStackClient: osClient,
 			}
 			got, err := r.ensureSG(tt.args.instance, tt.args.tenant)
 			if (err != nil) != tt.wantErr {
@@ -643,10 +643,10 @@ func TestSecurityGroupReconciler_addRule(t *testing.T) {
 			defer mockCtrl.Finish()
 			osClient := tt.before(mockCtrl)
 			r := &SecurityGroupReconciler{
-				Client:   tt.fields.Client,
-				Log:      ctrl.Log.WithName("controllers").WithName("SecurityGroup"),
-				Scheme:   tt.fields.Scheme,
-				osClient: osClient,
+				Client:          tt.fields.Client,
+				Log:             ctrl.Log.WithName("controllers").WithName("SecurityGroup"),
+				Scheme:          tt.fields.Scheme,
+				OpenStackClient: osClient,
 			}
 			if err := r.addRule(tt.args.instance, tt.args.sg); (err != nil) != tt.wantErr {
 				t.Errorf("addRule() error = %v, wantErr %v", err, tt.wantErr)
@@ -793,10 +793,10 @@ func TestSecurityGroupReconciler_deleteRule(t *testing.T) {
 			defer mockCtrl.Finish()
 			osClient := tt.before(mockCtrl)
 			r := &SecurityGroupReconciler{
-				Client:   tt.fields.Client,
-				Log:      ctrl.Log.WithName("controllers").WithName("SecurityGroup"),
-				Scheme:   tt.fields.Scheme,
-				osClient: osClient,
+				Client:          tt.fields.Client,
+				Log:             ctrl.Log.WithName("controllers").WithName("SecurityGroup"),
+				Scheme:          tt.fields.Scheme,
+				OpenStackClient: osClient,
 			}
 			if err := r.deleteRule(tt.args.instance, tt.args.sg); (err != nil) != tt.wantErr {
 				t.Errorf("deleteRule() error = %v, wantErr %v", err, tt.wantErr)
@@ -1027,10 +1027,10 @@ func TestSecurityGroupReconciler_deleteExternalDependency(t *testing.T) {
 			mockCtrl = gomock.NewController(t)
 			defer mockCtrl.Finish()
 			r := &SecurityGroupReconciler{
-				Client:   tt.fields.Client,
-				Log:      ctrl.Log.WithName("controllers").WithName("SecurityGroup"),
-				Scheme:   tt.fields.Scheme,
-				osClient: tt.before(mockCtrl),
+				Client:          tt.fields.Client,
+				Log:             ctrl.Log.WithName("controllers").WithName("SecurityGroup"),
+				Scheme:          tt.fields.Scheme,
+				OpenStackClient: tt.before(mockCtrl),
 			}
 			if err := r.deleteExternalDependency(tt.args.instance, tt.args.nodes); (err != nil) != tt.wantErr {
 				t.Errorf("deleteExternalDependency() error = %v, wantErr %v", err, tt.wantErr)
