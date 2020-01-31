@@ -18,6 +18,7 @@ package main
 
 import (
 	"flag"
+	"github.com/takaishi/openstack-sg-controller/internal"
 	"os"
 
 	openstackv1beta1 "github.com/takaishi/openstack-sg-controller/api/v1beta1"
@@ -64,11 +65,16 @@ func main() {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
 	}
-
+	osClient, err := internal.NewClient()
+	if err != nil {
+		setupLog.Error(err, "faled to create osClient")
+		os.Exit(1)
+	}
 	if err = (&controllers.SecurityGroupReconciler{
-		Client: mgr.GetClient(),
-		Log:    ctrl.Log.WithName("controllers").WithName("SecurityGroup"),
-		Scheme: mgr.GetScheme(),
+		Client:          mgr.GetClient(),
+		Log:             ctrl.Log.WithName("controllers").WithName("SecurityGroup"),
+		Scheme:          mgr.GetScheme(),
+		OpenStackClient: osClient,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "SecurityGroup")
 		os.Exit(1)
