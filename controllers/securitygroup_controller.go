@@ -205,7 +205,6 @@ func (r *SecurityGroupReconciler) ensureSG(instance *openstackv1beta1.SecurityGr
 			return nil, err
 		}
 	}
-	r.recorder.Eventf(instance, v1.EventTypeNormal, "SuccessfulEnsure", "Created SecurityGroup %s", instance.Spec.Name)
 
 	return sg, nil
 }
