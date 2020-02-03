@@ -29,6 +29,66 @@ spec:
         - --enable-leader-election
         image: controller:latest
         name: manager
+        env:
+          - name: POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: OS_AUTH_URL
+            valueFrom:
+              secretKeyRef:
+                name: openstack-sg-controller
+                key: os_auth_url
+          - name: OS_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: openstack-sg-controller
+                key: os_username
+          - name: OS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: openstack-sg-controller
+                key: os_password
+          - name: OS_PROJECT_NAME
+            valueFrom:
+              secretKeyRef:
+                name: openstack-sg-controller
+                key: os_project_name
+          - name: OS_TENANT_NAME
+            valueFrom:
+              secretKeyRef:
+                name: openstack-sg-controller
+                key: os_tenant_name
+          - name: OS_REGION_NAME
+            valueFrom:
+              secretKeyRef:
+                name: openstack-sg-controller
+                key: os_region_name
+          - name: OS_REGION_NAME
+            valueFrom:
+              secretKeyRef:
+                name: openstack-sg-controller
+                key: os_region_name
+          - name: OS_DOMAIN_NAME
+            valueFrom:
+              secretKeyRef:
+                name: openstack-sg-controller
+                key: os_domain_name
+          - name: OS_IDENTITY_API_VERSION
+            valueFrom:
+              secretKeyRef:
+                name: openstack-sg-controller
+                key: os_identity_api_version
+          - name: OS_PROJECT_DOMAIN_NAME
+            valueFrom:
+              secretKeyRef:
+                name: openstack-sg-controller
+                key: os_project_domain_name
+          - name: OS_USER_DOMAIN_NAME
+            valueFrom:
+              secretKeyRef:
+                name: openstack-sg-controller
+                key: os_user_domain_name
         resources:
           limits:
             cpu: 100m
