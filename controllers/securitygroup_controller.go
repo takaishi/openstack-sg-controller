@@ -29,6 +29,7 @@ import (
 	errors_ "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/tools/record"
 	"os"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"strings"
@@ -49,12 +50,13 @@ type SecurityGroupReconciler struct {
 	Log             logr.Logger
 	Scheme          *runtime.Scheme
 	OpenStackClient internal.OpenStackClientInterface
+	recorder        record.EventRecorder
 }
 
 // +kubebuilder:rbac:groups=openstack.repl.info,resources=securitygroups,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=openstack.repl.info,resources=securitygroups/status,verbs=get;update;patch
 
-func (r *SecurityGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+func (r *SecurityGroupReconciler) Reconcile(req ctrl.Request) (_ ctrl.Result, reterr error) {
 	_ = context.Background()
 	_ = r.Log.WithValues("securitygroup", req.NamespacedName)
 
@@ -64,103 +66,95 @@ func (r *SecurityGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 	err := r.Get(context.TODO(), req.NamespacedName, instance)
 	if err != nil {
 		if errors_.IsNotFound(err) {
-			r.Log.Info("Debug: instance not found", "SecurityGroup", instance.Name)
+			r.Log.Info("SecurityGroup not found", "Namespace", req.Namespace, "Name", req.Name)
 			return reconcile.Result{}, nil
 		}
 		// Error reading the object - requeue the request.
 		return reconcile.Result{}, err
 	}
 
-	r.Log.Info("Info: Start reconcile", "sg", instance.Name)
-	if instance.ObjectMeta.DeletionTimestamp.IsZero() {
-		r.Log.Info("Debug: deletion timestamp is zero")
-		if !containsString(instance.ObjectMeta.Finalizers, finalizerName) {
-			r.Log.Info("Debug: Set Finalizer")
-			return r.setFinalizer(instance)
-		}
-	} else {
-		nodes, err := r.getNodes(instance)
-		if err != nil {
-			r.Log.Info("Error", "Failed to get Nodes", err.Error())
-			return reconcile.Result{}, err
-		}
-
-		return r.runFinalizer(instance, nodes)
+	nodes, err := r.getNodes(instance)
+	if err != nil {
+		return reconcile.Result{}, err
 	}
 
-	r.Log.Info("Debug", "called", "GetTenantByName", "tenant", os.Getenv("OS_TENANT_NAME"))
+	// Always attempt to update SecurityGroup status after reconcile.
+	defer func() {
+		if err := r.Status().Update(context.Background(), instance); err != nil {
+			reterr = err
+		}
+	}()
+
+	// Handle deletion reconcile loop
+	if !instance.ObjectMeta.DeletionTimestamp.IsZero() {
+		return r.reconcileDelete(instance, nodes)
+	}
+
+	// Handle normal reconcile loop
+	return r.reconcile(instance, nodes)
+}
+
+func (r *SecurityGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	r.recorder = mgr.GetEventRecorderFor("cluster-controller")
+
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&openstackv1beta1.SecurityGroup{}).
+		Complete(r)
+}
+
+func (r *SecurityGroupReconciler) reconcile(instance *openstackv1beta1.SecurityGroup, nodes []v1.Node) (_ ctrl.Result, reterr error) {
+	var sg *groups.SecGroup
+
+	if instance.ObjectMeta.DeletionTimestamp.IsZero() {
+		if !containsString(instance.ObjectMeta.Finalizers, finalizerName) {
+			return r.setFinalizer(instance)
+		}
+	}
+
 	tenant, err := r.OpenStackClient.GetTenantByName(os.Getenv("OS_TENANT_NAME"))
 	if err != nil {
 		return reconcile.Result{}, err
 	}
 
-	nodes, err := r.getNodes(instance)
-	if err != nil {
-		r.Log.Info("Error", "Failed to get Nodes", err.Error())
-		return reconcile.Result{}, err
-	}
-
-	var sg *groups.SecGroup
-
 	// Create the SecurityGroup when it's no exists
 	sg, err = r.ensureSG(instance, tenant)
 	if err != nil {
-		r.Log.Info("Error", "Failed to ensureSG", err.Error())
 		return reconcile.Result{}, err
 	}
 
 	// Add the rule to securityGroup when that does'nt have.
 	err = r.addRule(instance, sg)
 	if err != nil {
-		r.Log.Info("Error", "addRule", err.Error())
 		return reconcile.Result{}, err
 	}
 
 	// Detach the securityGroup from node when node's label are unmatch.
 	err = r.detachSG(instance, sg, nodes)
 	if err != nil {
-		r.Log.Info("Error", "Failed to detachSG", err.Error())
 		return reconcile.Result{}, err
 	}
 
 	// Delete the rule from securityGroup when spec doesn't have.
 	err = r.deleteRule(instance, sg)
 	if err != nil {
-		r.Log.Info("Error", "Failed to deleteRule", err.Error())
 		return reconcile.Result{}, err
 	}
 
 	// Atach securityGroup to node.
 	err = r.attachSG(instance, sg, nodes)
 	if err != nil {
-		r.Log.Info("Error", "Failed to attachSG", err.Error())
 		return reconcile.Result{}, err
 	}
 
-	if err := r.Status().Update(context.Background(), instance); err != nil {
-		r.Log.Info("Debug", "failed to update sg", err.Error())
-		return reconcile.Result{}, err
-	}
-
-	r.Log.Info("Info: Success reconcile", "sg", instance.Name)
 	return reconcile.Result{}, nil
 }
 
-func (r *SecurityGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&openstackv1beta1.SecurityGroup{}).
-		Complete(r)
-}
-
 func (r *SecurityGroupReconciler) deleteExternalDependency(instance *openstackv1beta1.SecurityGroup, nodes []v1.Node) error {
-	r.Log.Info("deleting the external dependencies", "name", instance.Status.Name)
-
-	r.Log.Info("Call GetSecurityGroup", "instance.Status.ID", instance.Status.ID)
 	sg, err := r.OpenStackClient.GetSecurityGroup(instance.Status.ID)
 	if err != nil {
 		_, notfound := err.(gophercloud.ErrDefault404)
 		if notfound {
-			r.Log.Info("The SecurityGroup has deleted already.", "name", instance.Status.Name)
+			r.recorder.Eventf(instance, v1.EventTypeNormal, "SecurityGroupAlreadyDeleted", "SecurityGroup %s has deleted already.", instance.Spec.Name)
 			return nil
 		}
 		return errors.Wrap(err, "GetSecurityGroup failed")
@@ -168,47 +162,46 @@ func (r *SecurityGroupReconciler) deleteExternalDependency(instance *openstackv1
 
 	for _, node := range nodes {
 		id := strings.ToLower(node.Status.NodeInfo.SystemUUID)
-		r.Log.Info("Call ServerHasSG", "id", id, "instance.Status.Name", instance.Status.Name)
 		hasSg, err := r.OpenStackClient.ServerHasSG(id, instance.Status.Name)
 		if err != nil {
 			return errors.Wrap(err, "ServerHasSG failed")
 		}
 
 		if hasSg {
-			r.Log.Info("Call: DetachSG", "id", id, "instance.Status.Name", instance.Status.Name)
-			r.OpenStackClient.DetachSG(id, instance.Status.Name)
+			err = r.OpenStackClient.DetachSG(id, instance.Status.Name)
+			if err != nil {
+				r.recorder.Eventf(instance, v1.EventTypeWarning, "FailureDetachSecurityGroup", "Failed to detach SecurityGroup %s from %s: %s", instance.Spec.Name, id, err.Error())
+			}
 		}
 	}
 
-	r.Log.Info("Call: DeleteSecurityGroup", "sg.ID", sg.ID)
 	err = r.OpenStackClient.DeleteSecurityGroup(sg.ID)
 	if err != nil {
+		r.recorder.Eventf(instance, v1.EventTypeWarning, "FailureDeleteSecurityGroup", "Failed to delete SecurityGroup %s %s", instance.Spec.Name, err.Error())
 		return errors.Wrap(err, "DeleteSecurityGroup failed")
 	}
+	r.recorder.Eventf(instance, v1.EventTypeNormal, "SuccessfulDeleteExternalDependency", "Deleted all external dependency")
+
 	return nil
 }
 
 func (r *SecurityGroupReconciler) ensureSG(instance *openstackv1beta1.SecurityGroup, tenant projects.Project) (*groups.SecGroup, error) {
-	r.Log.Info("Call GetSecurityGroup", "instance.Statu.ID", instance.Status.ID)
 	sg, err := r.OpenStackClient.GetSecurityGroup(instance.Status.ID)
 	if err != nil {
 		switch err.(type) {
 		case gophercloud.ErrDefault404:
-			r.Log.Info("Creating SG", "name", instance.Spec.Name)
-			r.Log.Info("Debug", "name", instance.Spec.Name, "tenant", tenant.ID)
 			sg, err = r.OpenStackClient.CreateSecurityGroup(instance.Spec.Name, "", tenant.ID)
 			if err != nil {
-				r.Log.Info("Error", "msg", err.Error())
+				r.recorder.Eventf(instance, v1.EventTypeWarning, "FailureEnsure", "Failed to create SecurityGroup %s: %s", instance.Spec.Name, err.Error())
 				return nil, err
 			}
 			instance.Status.ID = sg.ID
 			instance.Status.Name = sg.Name
-			r.Log.Info("Success creating SG", "name", instance.Spec.Name, "id", sg.ID)
 		default:
-			r.Log.Info("Debug: errorrrrrr")
 			return nil, err
 		}
 	}
+	r.recorder.Eventf(instance, v1.EventTypeNormal, "SuccessfulEnsure", "Created SecurityGroup %s", instance.Spec.Name)
 
 	return sg, nil
 }
@@ -234,13 +227,12 @@ func (r *SecurityGroupReconciler) addRule(instance *openstackv1beta1.SecurityGro
 				EtherType:      rules.RuleEtherType(rule.EtherType),
 				Protocol:       rules.RuleProtocol(rule.Protocol),
 			}
-			r.Log.Info("Creating SG Rule", "cidr", rule.RemoteIpPrefix, "port", fmt.Sprintf("%d-%d", rule.PortRangeMin, rule.PortRangeMax))
 			err := r.OpenStackClient.AddSecurityGroupRule(createOpts)
 			if err != nil {
-				r.Log.Info("Error", "addRule", err.Error())
+				r.recorder.Eventf(instance, v1.EventTypeWarning, "FailureAddRule", "Failed to create SecurityGroupRule cidr=%s, port=%s: %s", rule.RemoteIpPrefix, fmt.Sprintf("%d-%d", rule.PortRangeMin, rule.PortRangeMax), err.Error())
 				return err
 			}
-			r.Log.Info("Success to create SG Rule", "cidr", rule.RemoteIpPrefix, "port", fmt.Sprintf("%d-%d", rule.PortRangeMin, rule.PortRangeMax))
+			r.recorder.Eventf(instance, v1.EventTypeNormal, "SuccessfulAddRule", "Created SecurityGroupRule cidr=%s, port=%s", rule.RemoteIpPrefix, fmt.Sprintf("%d-%d", rule.PortRangeMin, rule.PortRangeMax))
 		}
 	}
 	return nil
@@ -249,13 +241,12 @@ func (r *SecurityGroupReconciler) addRule(instance *openstackv1beta1.SecurityGro
 func (r *SecurityGroupReconciler) setFinalizer(sg *openstackv1beta1.SecurityGroup) (reconcile.Result, error) {
 	sg.ObjectMeta.Finalizers = append(sg.ObjectMeta.Finalizers, finalizerName)
 	if err := r.Update(context.Background(), sg); err != nil {
-		r.Log.Info("Debug", "failed to update sg", err.Error())
 		return reconcile.Result{}, err
 	}
 	return reconcile.Result{}, nil
 }
 
-func (r *SecurityGroupReconciler) runFinalizer(sg *openstackv1beta1.SecurityGroup, nodes []v1.Node) (reconcile.Result, error) {
+func (r *SecurityGroupReconciler) reconcileDelete(sg *openstackv1beta1.SecurityGroup, nodes []v1.Node) (reconcile.Result, error) {
 	if containsString(sg.ObjectMeta.Finalizers, finalizerName) {
 		if err := r.deleteExternalDependency(sg, nodes); err != nil {
 			return reconcile.Result{}, err
@@ -298,13 +289,13 @@ func (r *SecurityGroupReconciler) detachSG(instance *openstackv1beta1.SecurityGr
 
 	for _, id := range instance.Status.Nodes {
 		if !containsString(existsNodeIDs, id) {
-			r.Log.Info("Info", "Detach SG from Server", strings.ToLower(id))
 			err := r.OpenStackClient.DetachSG(strings.ToLower(id), sg.Name)
 			if err != nil {
-				r.Log.Info("Error", "Failed to DetachSG", err.Error())
+				r.recorder.Eventf(instance, v1.EventTypeWarning, "FailureDetachSecurityGroup", "Failed to detach SecurityGroup %s: %s", instance.Spec.Name, err.Error())
 				return err
 			}
 			instance.Status.Nodes = removeString(instance.Status.Nodes, id)
+			r.recorder.Eventf(instance, v1.EventTypeNormal, "SuccessDetachSecurityGroup", "Detached SecurityGroup %s from %s", instance.Spec.Name, id)
 		}
 	}
 
@@ -323,12 +314,12 @@ func (r *SecurityGroupReconciler) deleteRule(instance *openstackv1beta1.Security
 			}
 		}
 		if delete {
-			r.Log.Info("Deleting SG Rule", "cidr", existRule.RemoteIPPrefix, "port", fmt.Sprintf("%d-%d", existRule.PortRangeMin, existRule.PortRangeMax))
 			err := r.OpenStackClient.DeleteSecurityGroupRule(existRule.ID)
 			if err != nil {
+				r.recorder.Eventf(instance, v1.EventTypeWarning, "FailureDeleteRule", "Failed to delete SecurityGroupRulecidr=%s, port=%s: %s", existRule.RemoteIPPrefix, fmt.Sprintf("%d-%d", existRule.PortRangeMin, existRule.PortRangeMax), err.Error())
 				return err
 			}
-			r.Log.Info("Success to delete SG Rule", "cidr", existRule.RemoteIPPrefix, "port", fmt.Sprintf("%d-%d", existRule.PortRangeMin, existRule.PortRangeMax))
+			r.recorder.Eventf(instance, v1.EventTypeNormal, "SuccessfulDeleteRule", "Deleted SecurityGroupRule cidr=%s, port=%s", existRule.RemoteIPPrefix, fmt.Sprintf("%d-%d", existRule.PortRangeMin, existRule.PortRangeMax))
 		}
 	}
 	return nil
@@ -337,20 +328,18 @@ func (r *SecurityGroupReconciler) deleteRule(instance *openstackv1beta1.Security
 func (r *SecurityGroupReconciler) attachSG(instance *openstackv1beta1.SecurityGroup, sg *groups.SecGroup, nodes []v1.Node) error {
 	for _, node := range nodes {
 		id := node.Status.NodeInfo.SystemUUID
-		r.Log.Info("Call ServerHasSG", "id", id, "sg.Name", sg.Name)
 		hasSg, err := r.OpenStackClient.ServerHasSG(strings.ToLower(id), sg.Name)
 		if err != nil {
-			r.Log.Info("Error", "Failed to ServerHasSG", err.Error())
 			return err
 		}
 
 		if !hasSg {
-			r.Log.Info("Call AttachSG", "id", id, "sg.Name", sg.Name)
 			if err = r.OpenStackClient.AttachSG(strings.ToLower(id), sg.Name); err != nil {
-				r.Log.Info("Debug", "failed to attach sg", err.Error())
+				r.recorder.Eventf(instance, v1.EventTypeWarning, "FailureAttachSecurityGroup", "Failed to detach SecurityGroup %s to %s: %s", sg.Name, id, err.Error())
 				return err
 			}
 			instance.Status.Nodes = append(instance.Status.Nodes, strings.ToLower(id))
+			r.recorder.Eventf(instance, v1.EventTypeNormal, "AttachSecurityGroup", "Attached SecurityGroup %s to %s", sg.Name, id)
 		}
 	}
 

@@ -81,6 +81,7 @@ var _ = Describe("SecurityGroup Controller", func() {
 				Client:          k8sManager.GetClient(),
 				Log:             ctrl.Log.WithName("controllers").WithName("SecretScope"),
 				OpenStackClient: newOpenStackClientMock(mockCtrl),
+				recorder:        k8sManager.GetEventRecorderFor("controller"),
 			})
 
 			_, err = ctrl.NewControllerManagedBy(k8sManager).
@@ -160,6 +161,16 @@ var _ = Describe("SecurityGroup Controller", func() {
 		})
 	})
 })
+
+type FakeRecorder struct{}
+
+func (r *FakeRecorder) Event(object runtime.Object, eventtype, reason, message string) {}
+func (r *FakeRecorder) Eventf(object runtime.Object, eventtype, reason, messageFmt string, args ...interface{}) {
+}
+func (r *FakeRecorder) PastEventf(object runtime.Object, timestamp metav1.Time, eventtype, reason, messageFmt string, args ...interface{}) {
+}
+func (r *FakeRecorder) AnnotatedEventf(object runtime.Object, annotations map[string]string, eventtype, reason, messageFmt string, args ...interface{}) {
+}
 
 func TestSecurityGroupReconciler_attachSG(t *testing.T) {
 	type fields struct {
@@ -247,6 +258,7 @@ func TestSecurityGroupReconciler_attachSG(t *testing.T) {
 			r := &SecurityGroupReconciler{
 				Log:             ctrl.Log.WithName("controllers").WithName("SecurityGroup"),
 				OpenStackClient: osClient,
+				recorder:        &FakeRecorder{},
 			}
 			if err := r.attachSG(tt.args.instance, tt.args.sg, tt.args.nodes); (err != nil) != tt.wantErr {
 				t.Errorf("attachSG() error = %v, wantErr %v", err, tt.wantErr)
@@ -322,6 +334,7 @@ func TestSecurityGroupReconciler_detachSG(t *testing.T) {
 				Log:             ctrl.Log.WithName("controllers").WithName("SecurityGroup"),
 				Scheme:          tt.fields.Scheme,
 				OpenStackClient: tt.before(mockCtrl),
+				recorder:        &FakeRecorder{},
 			}
 
 			err := r.detachSG(tt.args.instance, tt.args.sg, tt.args.nodes)
@@ -477,6 +490,7 @@ func TestSecurityGroupReconciler_ensureSG(t *testing.T) {
 			r := &SecurityGroupReconciler{
 				Log:             ctrl.Log.WithName("controllers").WithName("SecurityGroup"),
 				OpenStackClient: osClient,
+				recorder:        &FakeRecorder{},
 			}
 			got, err := r.ensureSG(tt.args.instance, tt.args.tenant)
 			if (err != nil) != tt.wantErr {
@@ -647,6 +661,7 @@ func TestSecurityGroupReconciler_addRule(t *testing.T) {
 				Log:             ctrl.Log.WithName("controllers").WithName("SecurityGroup"),
 				Scheme:          tt.fields.Scheme,
 				OpenStackClient: osClient,
+				recorder:        &FakeRecorder{},
 			}
 			if err := r.addRule(tt.args.instance, tt.args.sg); (err != nil) != tt.wantErr {
 				t.Errorf("addRule() error = %v, wantErr %v", err, tt.wantErr)
@@ -797,6 +812,7 @@ func TestSecurityGroupReconciler_deleteRule(t *testing.T) {
 				Log:             ctrl.Log.WithName("controllers").WithName("SecurityGroup"),
 				Scheme:          tt.fields.Scheme,
 				OpenStackClient: osClient,
+				recorder:        &FakeRecorder{},
 			}
 			if err := r.deleteRule(tt.args.instance, tt.args.sg); (err != nil) != tt.wantErr {
 				t.Errorf("deleteRule() error = %v, wantErr %v", err, tt.wantErr)
@@ -1031,6 +1047,7 @@ func TestSecurityGroupReconciler_deleteExternalDependency(t *testing.T) {
 				Log:             ctrl.Log.WithName("controllers").WithName("SecurityGroup"),
 				Scheme:          tt.fields.Scheme,
 				OpenStackClient: tt.before(mockCtrl),
+				recorder:        &FakeRecorder{},
 			}
 			if err := r.deleteExternalDependency(tt.args.instance, tt.args.nodes); (err != nil) != tt.wantErr {
 				t.Errorf("deleteExternalDependency() error = %v, wantErr %v", err, tt.wantErr)
