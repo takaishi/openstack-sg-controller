@@ -33,6 +33,7 @@ type SecurityGroupSpec struct {
 	Name         string              `json:"name"`
 	Tenant       string              `json:"tenant,omitempty"`
 	Rules        []SecurityGroupRule `json:"rules"`
+	ID           string              `json:"id,omitempty"`
 }
 
 type SecurityGroupRule struct {

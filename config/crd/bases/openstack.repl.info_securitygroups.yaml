@@ -32,6 +32,8 @@ spec:
         spec:
           description: SecurityGroupSpec defines the desired state of SecurityGroup
           properties:
+            id:
+              type: string
             name:
               type: string
             nodeSelector:

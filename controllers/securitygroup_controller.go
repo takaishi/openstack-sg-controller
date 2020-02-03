@@ -189,6 +189,9 @@ func (r *SecurityGroupReconciler) deleteExternalDependency(instance *openstackv1
 }
 
 func (r *SecurityGroupReconciler) ensureSG(instance *openstackv1beta1.SecurityGroup, tenant projects.Project) (*groups.SecGroup, error) {
+	if instance.Spec.ID != "" {
+		instance.Status.ID = instance.Spec.ID
+	}
 	sg, err := r.OpenStackClient.GetSecurityGroup(instance.Status.ID)
 	if err != nil {
 		switch err.(type) {
