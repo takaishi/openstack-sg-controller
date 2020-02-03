@@ -6,6 +6,24 @@ metadata:
   creationTimestamp: null
   name: manager-role
 rules:
+- resources:
+  - nodes
+  verbs:
+  - get
+  - list
+  - watch
+- resources:
+  - nodes/status
+  verbs:
+  - get
+- apiGroups:
+  - openstack.repl.info
+  resources:
+  - events
+  verbs:
+  - get
+  - patch
+  - update
 - apiGroups:
   - openstack.repl.info
   resources:

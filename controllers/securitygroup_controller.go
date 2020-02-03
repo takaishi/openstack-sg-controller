@@ -55,6 +55,9 @@ type SecurityGroupReconciler struct {
 
 // +kubebuilder:rbac:groups=openstack.repl.info,resources=securitygroups,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=openstack.repl.info,resources=securitygroups/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=openstack.repl.info,resources=events,verbs=get;update;patch
+// +kubebuilder:rbac:groups=,resources=nodes,verbs=get;list;watch
+// +kubebuilder:rbac:groups=,resources=nodes/status,verbs=get
 
 func (r *SecurityGroupReconciler) Reconcile(req ctrl.Request) (_ ctrl.Result, reterr error) {
 	_ = context.Background()
