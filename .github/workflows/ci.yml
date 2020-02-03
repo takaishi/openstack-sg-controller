@@ -19,4 +19,6 @@ jobs:
 
       - name: Test
         run: |
-          make test
+          curl -L https://github.com/kubernetes-sigs/kubebuilder/releases/download/v2.2.0/kubebuilder_2.2.0_linux_amd64.tar.gz > kubebuilder_2.2.0_linux_amd64.tar.gz
+          tar xf ./kubebuilder_2.2.0_linux_amd64.tar.gz
+          KUBEBUILDER_ASSETS=./kubebuilder_2.2.0_linux_amd64/bin/ make test
