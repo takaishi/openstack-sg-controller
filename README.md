@@ -43,5 +43,6 @@ $ make docker-push
 Deploy to Kubernetes:
 
 ```
-$ make deploy
+$  IMG=rtakaishi/openstack-sg-controller:${version} make deploy
 ```
+
