@@ -1,0 +1,19 @@
+---
+name: Docker Image CI
+on:
+  push:
+    tags:
+      - v*.*.*
+env:
+  DOCKER_HUB_TOKEN: ${{ secrets.DOCKER_HUB_TOKEN}}
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Build the Docker image
+        run: |
+          tag=$(echo ${{ github.ref }} | sed 's/refs\/tags\///g' | tr -d '\n')
+          docker login -u rtakaishi -p $DOCKER_HUB_TOKEN
+          docker build . --file Dockerfile --tag rtakaishi/openstack-sg-controller:${tag}
+          docker push rtakaishi/openstack-sg-controller:${tag}

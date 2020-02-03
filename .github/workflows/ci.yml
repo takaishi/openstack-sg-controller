@@ -1,0 +1,24 @@
+---
+name: CI
+on: [push]
+jobs:
+
+  run_test:
+    name: Go Test
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Set up Go 1.13
+        uses: actions/setup-go@v1
+        with:
+          go-version: 1.13
+        id: go
+
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v1
+
+      - name: Run Test
+        run: |
+          curl -L https://github.com/kubernetes-sigs/kubebuilder/releases/download/v2.2.0/kubebuilder_2.2.0_linux_amd64.tar.gz > kubebuilder_2.2.0_linux_amd64.tar.gz
+          tar xf ./kubebuilder_2.2.0_linux_amd64.tar.gz
+          KUBEBUILDER_ASSETS=$(pwd)/kubebuilder_2.2.0_linux_amd64/bin/ make test
