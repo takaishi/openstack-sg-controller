@@ -4,7 +4,7 @@ on: [push]
 jobs:
 
   run_test:
-    name: Build
+    name: Go Test
     runs-on: ubuntu-latest
     steps:
 
@@ -17,7 +17,7 @@ jobs:
       - name: Check out code into the Go module directory
         uses: actions/checkout@v1
 
-      - name: Test
+      - name: Run Test
         run: |
           curl -L https://github.com/kubernetes-sigs/kubebuilder/releases/download/v2.2.0/kubebuilder_2.2.0_linux_amd64.tar.gz > kubebuilder_2.2.0_linux_amd64.tar.gz
           tar xf ./kubebuilder_2.2.0_linux_amd64.tar.gz
