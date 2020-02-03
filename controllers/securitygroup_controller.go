@@ -338,7 +338,7 @@ func (r *SecurityGroupReconciler) attachSG(instance *openstackv1beta1.SecurityGr
 
 		if !hasSg {
 			if err = r.OpenStackClient.AttachSG(strings.ToLower(id), sg.Name); err != nil {
-				r.recorder.Eventf(instance, v1.EventTypeWarning, "FailureAttachSecurityGroup", "Failed to detach SecurityGroup %s to %s: %s", sg.Name, id, err.Error())
+				r.recorder.Eventf(instance, v1.EventTypeWarning, "FailureAttachSecurityGroup", "Failed to attach SecurityGroup %s to %s: %s", sg.Name, id, err.Error())
 				return err
 			}
 			instance.Status.Nodes = append(instance.Status.Nodes, strings.ToLower(id))
