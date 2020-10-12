@@ -2,6 +2,7 @@ package internal
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -47,6 +48,7 @@ type OpenStackClient struct {
 func NewClient() (OpenStackClientInterface, error) {
 	client := OpenStackClient{}
 	client.regionName = os.Getenv("OS_REGION_NAME")
+	ca := os.Getenv("OS_CACERT")
 	cert := os.Getenv("OS_CERT")
 	key := os.Getenv("OS_KEY")
 
@@ -61,6 +63,19 @@ func NewClient() (OpenStackClientInterface, error) {
 	}
 
 	tlsConfig := &tls.Config{}
+
+	if ca != "" {
+		CA_Pool := x509.NewCertPool()
+
+		severCert, err := ioutil.ReadFile(ca)
+		if err != nil {
+			return nil, err
+		}
+		CA_Pool.AppendCertsFromPEM(severCert)
+
+		tlsConfig.RootCAs = CA_Pool
+	}
+
 	if cert != "" && key != "" {
 		clientCert, err := ioutil.ReadFile(cert)
 		if err != nil {
