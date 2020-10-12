@@ -91,10 +91,9 @@ func NewClient() (OpenStackClientInterface, error) {
 		}
 		tlsConfig.Certificates = []tls.Certificate{cert}
 		tlsConfig.BuildNameToCertificate()
-		transport := &http.Transport{Proxy: http.ProxyFromEnvironment, TLSClientConfig: tlsConfig}
-
-		client.providerClient.HTTPClient.Transport = transport
 	}
+	transport := &http.Transport{Proxy: http.ProxyFromEnvironment, TLSClientConfig: tlsConfig}
+	client.providerClient.HTTPClient.Transport = transport
 
 	err = _openstack.Authenticate(client.providerClient, authOpts)
 	if err != nil {
